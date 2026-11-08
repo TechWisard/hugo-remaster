@@ -160,9 +160,9 @@ class MeshTests(unittest.TestCase):
         with self.assertRaisesRegex(FormatError, "bounding box"):
             parse_mesh(self.record(bytes(data)))
 
-    def test_neutral_texture_color_is_not_half_brightness(self):
+    def test_pc_mesh_colors_use_raw_diffuse_modulation_for_both_surface_types(self):
         colors = preview_colors(np.array([[128, 128, 128], [255, 64, 0]]), textured=True)
-        np.testing.assert_allclose(colors, [[1, 1, 1], [1, 0.5, 0]])
+        np.testing.assert_allclose(colors, [[128 / 255] * 3, [1, 64 / 255, 0]])
         np.testing.assert_allclose(preview_colors(np.array([[128, 128, 128]]), textured=False), [[128 / 255] * 3])
 
     def test_export_has_bounded_indices_embedded_texture_and_morph_sample(self):
@@ -181,7 +181,7 @@ class MeshTests(unittest.TestCase):
         accessor = doc["accessors"][doc["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"]]
         view = doc["bufferViews"][accessor["bufferView"]]
         first_color = struct.unpack_from("<4f", encoded, 28 + json_size + view["byteOffset"])
-        self.assertEqual(first_color, (1.0, 1.0, 1.0, 1.0))
+        np.testing.assert_allclose(first_color, (128 / 255, 128 / 255, 128 / 255, 1.0), atol=1e-7)
 
 
 class PublicationAndCliTests(unittest.TestCase):

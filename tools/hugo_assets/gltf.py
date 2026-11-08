@@ -10,19 +10,31 @@ from PIL import Image
 
 from .binary import FormatError, Reader, require
 from .catalog import Catalog
-from .mesh import Selection
+from .material_animation import ANIMATION_TOKEN, material_animation_binding
+from .mesh import Selection, decode_material_flags
 
 SOURCE_UNIT_SCALE = 0.01
 
 
 def preview_colors(rgb: np.ndarray, textured: bool) -> np.ndarray:
-    """128 is neutral modulation for textures; glTF COLOR_0 is limited to [0,1]."""
-    divisor = 128.0 if textured else 255.0
-    return np.clip(np.asarray(rgb, dtype=np.float32) / divisor, 0, 1)
+    """PC mesh diffuse bytes use /255 for both plain and textured surfaces.
+
+    The textured argument remains part of the caller API. The recovered PC
+    renderer uses D3DTOP_MODULATE, not a PSX-style doubled texture modulation.
+    Particle colors have their own decoder and are not changed here.
+    """
+    return np.clip(np.asarray(rgb, dtype=np.float32) / 255.0, 0, 1)
 
 
 def scene_axes(v: np.ndarray) -> np.ndarray:
     return np.stack((v[..., 0], v[..., 2], -v[..., 1]), axis=-1) * SOURCE_UNIT_SCALE
+
+
+def native_material_name(label: str, render: dict) -> str:
+    """Godot preserves material names even when glTF material extras are lost."""
+    selector = render["blend_selector"]
+    require(isinstance(selector, int) and 0 <= selector <= 3, "Invalid native material blend selector")
+    return f"{label}__hugo_blend_{selector}"
 
 
 def export_glb(catalog: Catalog, selections: list[Selection], include_samples: bool = False) -> bytes:
@@ -59,15 +71,36 @@ def export_glb(catalog: Catalog, selections: list[Selection], include_samples: b
         for part in mesh.parts:
             vertices = scene_axes(part.vertices @ selected.rotation.T + selected.translation)
             textured = bool(part.materials)
+            render = decode_material_flags(part.flags, textured=textured)
+            animation = material_animation_binding(mesh, part)
             colors = np.column_stack((preview_colors(part.colors[0, :, :3], textured),
-                                      np.ones(vertices.shape[1], dtype=np.float32)))
+                                      np.full(vertices.shape[1], render["vertex_alpha"], dtype=np.float32)))
             attributes = dict(POSITION=add_accessor(vertices[0], "VEC3", bounds=True),
                               COLOR_0=add_accessor(colors, "VEC4"))
-            material = dict(name=f"{selected.label}_part_{part.index:03d}", doubleSided=True,
+            material_label = f"{selected.label}_part_{part.index:03d}"
+            if animation:
+                material_label += ANIMATION_TOKEN + animation["key"]
+                if animation["source_vertex_index_attribute"] is not None:
+                    # UV2 is a metadata carrier, not an authored visual channel.
+                    # It survives Godot's vertex reordering/deduplication.
+                    source_ids = np.column_stack((np.arange(vertices.shape[1], dtype=np.float32),
+                                                  np.full(vertices.shape[1], part.index, dtype=np.float32)))
+                    attributes["TEXCOORD_1"] = add_accessor(source_ids, "VEC2")
+            material = dict(name=native_material_name(material_label, render),
+                            doubleSided=True,
                             extensions={"KHR_materials_unlit": {}},
                             pbrMetallicRoughness=dict(baseColorFactor=[1, 1, 1, 1], metallicFactor=0, roughnessFactor=1),
-                            extras=dict(source_flags=part.flags, color_divisor=128 if textured else 255,
-                                        above_neutral_color_clamped=bool(textured and np.any(part.colors[0, :, :3] > 128))))
+                            extras=dict(source_flags=part.flags, native_render=render,
+                                        native_blend_runtime_required=render["blend_selector"] in (1, 2),
+                                        preview_culling="double_sided_until_winding_verified",
+                                        color_divisor=render["color_divisor"]))
+            if animation:
+                material["extras"]["native_material_animation"] = animation
+            # glTF has no additive or inverse-source-color material equation.
+            # Keep these in the transparent pass and retain the exact native
+            # selector for the runtime adapter. Do not guess a black discard.
+            if render["alpha_blend_enabled"]:
+                material["alphaMode"] = "BLEND"
             if textured:
                 reference = part.materials[0]
                 texture = catalog.texture(mesh.group, reference.texture_id)
@@ -83,13 +116,16 @@ def export_glb(catalog: Catalog, selections: list[Selection], include_samples: b
                 material["pbrMetallicRoughness"]["baseColorTexture"] = dict(index=texture_indices[key])
                 material["extras"].update(source_texture_group=texture.group, source_texture_id=texture.resource_id,
                                            source_texture_payload_sha256=texture.sha256)
-                if any(alpha < 255 for alpha in pixels[3::4]):
-                    material.update(alphaMode="MASK", alphaCutoff=0.5)
-                attributes["TEXCOORD_0"] = add_accessor(part.uv_bytes[0].astype(np.float32) / 256, "VEC2")
+                if not render["alpha_blend_enabled"] and any(alpha < 255 for alpha in pixels[3::4]):
+                    material.update(alphaMode="MASK", alphaCutoff=render["alpha_cutoff"])
+                attributes["TEXCOORD_0"] = add_accessor(part.uv_bytes[0].astype(np.float32)
+                                                       * np.float32(1 / 255), "VEC2")
             doc["materials"].append(material)
             primitive = dict(attributes=attributes,
                              indices=add_accessor(part.faces.reshape(-1), "SCALAR", 5123, target=34963),
                              material=len(doc["materials"]) - 1, mode=4)
+            if animation:
+                primitive["extras"] = dict(native_material_animation=animation)
             if include_samples and mesh.sample_count > 1:
                 primitive["targets"] = [dict(POSITION=add_accessor(vertices[i] - vertices[0], "VEC3", bounds=True))
                                         for i in range(1, mesh.sample_count)]

@@ -2,6 +2,8 @@ class_name RemasterHUD
 extends CanvasLayer
 
 signal restart_requested
+signal menu_requested
+signal next_requested
 
 var counter: Label
 var clock_label: Label
@@ -12,6 +14,15 @@ var modal_title: Label
 var modal_detail: Label
 var continue_button: Button
 var restart_button: Button
+var next_button: Button
+var menu_button: Button
+var chapter_label: Label
+var health_label: Label
+var footer_label: Label
+var chapter_title: String = "Берег"
+var objective_text: String = "Соберите все алмазы и доберитесь до каменной арки."
+var campaign_mode: bool = false
+var has_next_chapter: bool = false
 var _toast_remaining: float = 0.0
 var _completed: bool = false
 var _audio: AudioStreamPlayer
@@ -33,10 +44,12 @@ func _ready() -> void:
 	screen.add_child(brand)
 	brand.add_child(_label("КУЗЯ", 34, GOLD))
 	brand.add_child(_label("АЛМАЗНАЯ ЛИХОРАДКА", 12, CREAM))
-	var chapter := _label("01  /  БЕРЕГ", 16, CREAM)
-	chapter.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	chapter.position = Vector2(-64, 34)
-	screen.add_child(chapter)
+	chapter_label = _label("01  /  БЕРЕГ", 16, CREAM)
+	chapter_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	chapter_label.position = Vector2(-240, 34)
+	chapter_label.custom_minimum_size.x = 480
+	chapter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	screen.add_child(chapter_label)
 	var stats := PanelContainer.new()
 	stats.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	stats.position = Vector2(-206, 24)
@@ -52,18 +65,22 @@ func _ready() -> void:
 	clock_label = _label("00:00", 14, CREAM)
 	clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_stack.add_child(clock_label)
+	health_label = _label("", 16, GOLD)
+	health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	health_label.visible = false
+	stats_stack.add_child(health_label)
 	progress_bar = ProgressBar.new()
 	progress_bar.custom_minimum_size = Vector2(140, 4)
 	progress_bar.show_percentage = false
 	progress_bar.add_theme_stylebox_override("background", _flat(Color(0.1, 0.2, 0.24, 0.8), 2))
 	progress_bar.add_theme_stylebox_override("fill", _flat(GOLD, 2))
 	stats_stack.add_child(progress_bar)
-	var footer := _label("WASD / стрелки — движение    ПРОБЕЛ — прыжок    SHIFT — бег    ПКМ — камера    ESC — пауза", 13, CREAM)
-	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	footer.offset_top = -34
-	footer.offset_bottom = -8
-	screen.add_child(footer)
+	footer_label = _label("WASD / стрелки — движение    ПРОБЕЛ — прыжок    SHIFT — бег    ПКМ — камера    ESC — пауза", 13, CREAM)
+	footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	footer_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	footer_label.offset_top = -34
+	footer_label.offset_bottom = -8
+	screen.add_child(footer_label)
 	message_label = _label("", 20, CREAM)
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -72,6 +89,8 @@ func _ready() -> void:
 	screen.add_child(message_label)
 	_build_modal(screen)
 	_audio = AudioStreamPlayer.new()
+	if AudioServer.get_bus_index("Effects") >= 0:
+		_audio.bus = "Effects"
 	_audio.volume_db = -15.0
 	_audio.stream = _pickup_sound()
 	add_child(_audio)
@@ -93,8 +112,29 @@ func _unhandled_input(event: InputEvent) -> void:
 func set_progress(current: int, total: int, elapsed: float) -> void:
 	counter.text = "◆  %d / %d" % [current, total]
 	clock_label.text = "%02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
-	progress_bar.max_value = total
+	progress_bar.max_value = maxi(total, 1)
 	progress_bar.value = current
+	progress_bar.visible = total > 0
+
+
+func set_chapter(title: String, number: int, has_next: bool) -> void:
+	campaign_mode = true
+	chapter_title = title
+	has_next_chapter = has_next
+	chapter_label.text = "%02d  /  %s" % [number, title.to_upper()]
+	objective_text = "Доберитесь до выхода из главы. Исследуйте маршрут и собирайте предметы."
+	footer_label.text = "WASD — движение   ПРОБЕЛ — прыжок   E / ЛКМ — атака   CTRL — ползти   ПКМ — камера   ESC — пауза"
+	menu_button.visible = true
+
+
+func set_health(current: int, maximum: int) -> void:
+	health_label.visible = true
+	health_label.text = "♥ ".repeat(maxi(current, 0)) + "♡ ".repeat(maxi(maximum - current, 0))
+
+
+func set_vitals(current: int, maximum: int, lives: int) -> void:
+	health_label.visible = true
+	health_label.text = "♥ %d / %d    × %d" % [current, maximum, lives]
 
 
 func toast(message: String, seconds: float = 3.5) -> void:
@@ -115,8 +155,9 @@ func toggle_pause() -> void:
 	get_tree().paused = will_pause
 	modal.visible = will_pause
 	modal_title.text = "Пауза"
-	modal_detail.text = "Соберите все алмазы и доберитесь до каменной арки.\nR — вернуться к последней контрольной точке."
+	modal_detail.text = objective_text + "\nR — вернуться к последней контрольной точке."
 	continue_button.visible = true
+	next_button.visible = false
 	if will_pause:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		continue_button.grab_focus()
@@ -125,17 +166,32 @@ func toggle_pause() -> void:
 func finish(elapsed: float) -> void:
 	_completed = true
 	modal.visible = true
-	modal_title.text = "Берег пройден"
-	modal_detail.text = "Все алмазы собраны.\nВремя: %02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
+	modal_title.text = "Глава пройдена" if campaign_mode else "Берег пройден"
+	modal_detail.text = (chapter_title if campaign_mode else "Все алмазы собраны.") + "\nВремя: %02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
 	continue_button.visible = false
+	next_button.visible = campaign_mode and has_next_chapter
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	restart_button.grab_focus()
+	if next_button.visible:
+		next_button.grab_focus()
+	else:
+		restart_button.grab_focus()
 
 
 func reset_hud() -> void:
 	_completed = false
 	get_tree().paused = false
 	modal.hide()
+
+
+func game_over() -> void:
+	_completed = true
+	modal.show()
+	modal_title.text = "Игра окончена"
+	modal_detail.text = "Жизни закончились. Можно начать эту главу заново."
+	continue_button.hide()
+	next_button.hide()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	restart_button.grab_focus()
 
 
 func _build_modal(screen: Control) -> void:
@@ -159,9 +215,17 @@ func _build_modal(screen: Control) -> void:
 	continue_button = _button("Продолжить")
 	continue_button.pressed.connect(toggle_pause)
 	stack.add_child(continue_button)
+	next_button = _button("Следующая глава")
+	next_button.pressed.connect(func() -> void: next_requested.emit())
+	next_button.visible = false
+	stack.add_child(next_button)
 	restart_button = _button("Начать заново")
 	restart_button.pressed.connect(func() -> void: restart_requested.emit())
 	stack.add_child(restart_button)
+	menu_button = _button("В главное меню")
+	menu_button.pressed.connect(func() -> void: menu_requested.emit())
+	menu_button.visible = false
+	stack.add_child(menu_button)
 	var quit_button := _button("Выйти")
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	stack.add_child(quit_button)

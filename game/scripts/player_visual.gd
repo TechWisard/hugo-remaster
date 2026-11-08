@@ -1,10 +1,16 @@
 class_name HugoPlayerVisual
 extends Node3D
+const NativeMaterialsScript = preload("res://scripts/native_materials.gd")
 ## Loads the locally generated mesh, or builds an original geometric stand-in.
-## The small procedural bob/limb swing is new prototype motion, not recovered animation.
+## Recovered actions play when the local animation manifest is present.
+## Procedural movement is only a fallback for assets without recovered tracks.
+
+const OriginalAnimationScript = preload("res://scripts/original_animation.gd")
 
 var using_imported_model: bool = false
+var using_original_animation: bool = false
 var source_bounds: AABB = AABB()
+var original_animation: HugoOriginalAnimation
 
 var _pose_root: Node3D
 var _normalized_root: Node3D
@@ -15,17 +21,48 @@ var _left_leg: Node3D
 var _right_leg: Node3D
 var _stride_phase: float = 0.0
 var _motion_weight: float = 0.0
+var _character_scale: float = 1.0
 
 
 func build(path: String, target_height: float, yaw_degrees: float = 0.0) -> void:
 	_pose_root = Node3D.new()
-	_pose_root.name = "ProceduralPose"
+	_pose_root.name = "Pose"
 	add_child(_pose_root)
 	_normalized_root = Node3D.new()
 	_normalized_root.name = "NormalizedModel"
 	_pose_root.add_child(_normalized_root)
 
-	if not path.is_empty() and ResourceLoader.exists(path, "PackedScene"):
+	_character_scale = target_height / 1.7
+	var manifest_path: String = path.get_base_dir().path_join("animation_manifest.json")
+	if path.get_file() == "hugo.glb" and FileAccess.file_exists(manifest_path):
+		var orientation: Node3D = Node3D.new()
+		orientation.name = "SourceOrientation"
+		orientation.rotation.y = deg_to_rad(yaw_degrees)
+		_normalized_root.add_child(orientation)
+		original_animation = OriginalAnimationScript.new() as HugoOriginalAnimation
+		original_animation.name = "RecoveredActions"
+		orientation.add_child(original_animation)
+		using_original_animation = original_animation.load_manifest(manifest_path, Callable(self, "_enable_imported_vertex_colors"))
+		if using_original_animation:
+			_scan_bounds(orientation, Transform3D.IDENTITY)
+			# Use the one recovered idle bound for every action. A moving hand or
+			# imported morph bound must never rescale or recenter the character.
+			var bind: Dictionary = original_animation.manifest.get("bind_bounds", {}) as Dictionary
+			var lower: Array = bind.get("min", []) as Array
+			var upper: Array = bind.get("max", []) as Array
+			if lower.size() == 3 and upper.size() == 3:
+				var low: Vector3 = Vector3(float(lower[0]), float(lower[1]), float(lower[2]))
+				var high: Vector3 = Vector3(float(upper[0]), float(upper[1]), float(upper[2]))
+				if low.is_finite() and high.is_finite() and high.y > low.y:
+					source_bounds = orientation.transform * AABB(low, high - low)
+					_has_mesh_bounds = true
+			using_imported_model = _has_mesh_bounds and source_bounds.size.y > 0.0001
+		else:
+			_normalized_root.remove_child(orientation)
+			orientation.free()
+			original_animation = null
+
+	if not using_original_animation and not path.is_empty() and ResourceLoader.exists(path, "PackedScene"):
 		var packed: PackedScene = ResourceLoader.load(path, "PackedScene") as PackedScene
 		if packed != null:
 			var instance: Node = packed.instantiate()
@@ -56,12 +93,27 @@ func build(path: String, target_height: float, yaw_degrees: float = 0.0) -> void
 		var bounds_center: Vector3 = source_bounds.get_center()
 		_normalized_root.scale = Vector3.ONE * height_scale
 		_normalized_root.position = Vector3(-bounds_center.x, -source_bounds.position.y, -bounds_center.z) * height_scale
+		if using_original_animation:
+			original_animation.distance_scale = height_scale
 
 
-func update_motion(local_velocity: Vector3, grounded: bool, delta: float) -> void:
+func update_motion(local_velocity: Vector3, grounded: bool, delta: float, action: String = "") -> void:
 	if not is_instance_valid(_pose_root):
 		return
 	var horizontal_speed: float = Vector2(local_velocity.x, local_velocity.z).length()
+	if using_original_animation and is_instance_valid(original_animation):
+		var selected_action: String = action
+		if selected_action.is_empty():
+			if not grounded:
+				selected_action = "jump" if local_velocity.y > 0.0 else "fall"
+			elif horizontal_speed < 0.08 * _character_scale:
+				selected_action = "idle"
+			else:
+				selected_action = "run" if horizontal_speed > 5.8 * _character_scale else "walk"
+		original_animation.set_action(selected_action)
+		var distance: float = absf(local_velocity.y) * delta if selected_action == "fall" else horizontal_speed * delta
+		original_animation.advance(delta, distance)
+		return
 	var target_weight: float = clampf(horizontal_speed / 4.8, 0.0, 1.0) if grounded else 0.0
 	var blend: float = 1.0 - exp(-12.0 * delta)
 	_motion_weight = lerpf(_motion_weight, target_weight, blend)
@@ -85,6 +137,8 @@ func update_motion(local_velocity: Vector3, grounded: bool, delta: float) -> voi
 func reset_pose() -> void:
 	_stride_phase = 0.0
 	_motion_weight = 0.0
+	if using_original_animation and is_instance_valid(original_animation):
+		original_animation.set_action("idle", true)
 	if is_instance_valid(_pose_root):
 		_pose_root.position = Vector3.ZERO
 		_pose_root.rotation = Vector3.ZERO
@@ -112,25 +166,7 @@ func _scan_bounds(node: Node, parent_transform: Transform3D) -> void:
 
 
 func _enable_imported_vertex_colors(node: Node) -> void:
-	var mesh_node: MeshInstance3D = node as MeshInstance3D
-	if mesh_node != null and mesh_node.mesh != null:
-		for surface_index: int in range(mesh_node.mesh.get_surface_count()):
-			var arrays: Array = mesh_node.mesh.surface_get_arrays(surface_index)
-			if not arrays[Mesh.ARRAY_COLOR] is PackedColorArray:
-				continue
-			var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
-			if colors.is_empty():
-				continue
-			var source_material: BaseMaterial3D = mesh_node.get_active_material(surface_index) as BaseMaterial3D
-			if source_material == null:
-				continue
-			# Godot 4.7 can leave the first imported surface's COLOR_0 flag off.
-			# A private surface material restores it without changing shared assets.
-			var material: BaseMaterial3D = source_material.duplicate() as BaseMaterial3D
-			material.vertex_color_use_as_albedo = true
-			mesh_node.set_surface_override_material(surface_index, material)
-	for child: Node in node.get_children():
-		_enable_imported_vertex_colors(child)
+	NativeMaterialsScript.apply_recursive(node)
 
 
 func _build_stand_in() -> void:

@@ -2,7 +2,7 @@
 
 This document describes the parts of the **Windows Hugo: Black Diamond Fever / «Кузя: Алмазная лихорадка»** resource file that were established by examining actual bytes. The repository contains reader code and generated synthetic tests. It does not contain the original resource file, game executables, extracted textures, audio, or meshes.
 
-The importer reads a local `HUGO4.CD`, validates the entire supported container and geometry, then produces three GLB previews. It neither downloads the game nor executes a game binary. This is a foundation for the remaster project; the outputs retain the original low-poly geometry.
+The importer reads a local `HUGO4.CD`, validates the supported container and geometry, and exports all eight playable scenes, action graphs, animations, gameplay metadata and original audio. Three small GLB previews remain available as a separate inspection profile. It neither downloads the game nor executes a game binary. The exported geometry retains the original low-poly data.
 
 ## Run the importer
 
@@ -29,8 +29,14 @@ The input must be the MDIC resource file itself. ISO, ZIP, setup executables, an
 | `game/assets/generated/palm.glb` | Palm: 160 vertices, 80 triangles, 4 submeshes |
 | `game/assets/generated/hugo_body.glb` | Body: 360 vertices, 376 triangles; first sample plus 3 morph targets |
 | `game/assets/generated/asset_manifest.json` | Input and output SHA-256 hashes, checked counts, source record references, coordinate/material conventions, fidelity limits |
+| `game/assets/generated/campaign.json`, `levels/` | Eight reconstructed scene graphs, all action meshes, collision data, transforms and source IDs |
+| `game/assets/generated/animation_manifest.json`, `animations/` | Fourteen Hugo actions and 27 special surface-death graphs |
+| `game/assets/generated/material_animation_manifest.json`, `materials/textures/` | Native texture sequences, RGB samples and UV samples, keyed by source mesh and part |
+| `game/assets/generated/gameplay_manifest.json`, `audio/` | Source state machines, events, player parameters, speakers and original WAV bytes |
+| `game/assets/generated/effects/` | Original particle sprite frames; parameters are included in level manifests |
+| `game/assets/generated/media_manifest.json`, `media/` | Optional locally converted movies, supplied music tracks and credits |
 
-Textures are embedded in the GLBs. `hugo_body.glb` contains named blend shapes `sample_001`, `sample_002`, and `sample_003`. It deliberately has no autoplay animation: the game's playback timing has not been reconstructed.
+Initial textures are embedded in the GLBs; material-sequence frames are also exported as lossless PNGs. The small `hugo_body.glb` preview still exposes named stored samples without autoplay. The campaign animation layer decodes native Q12 timelines, transform tracks and state timing; see [animation.md](animation.md).
 
 Intermediate extraction and reports are under `.work/imports/<source-sha256>/`:
 
@@ -137,12 +143,12 @@ The fixed header is 104 bytes. Geometry-internal pointers are **relative to the 
 | 40 | uint32 | Vertex-animation header pointer; observed value 104 |
 | 44 | uint32 | Submesh pointer-table pointer; observed value 112 |
 | 48 | uint32 | Native timeline pointer, following geometry |
-| 52 | uint32 | Extra-data pointer, or zero; block semantics are not fully reconstructed |
+| 52 | uint32 | Native collision quadtree pointer, or zero; see [scene_graph.md](scene_graph.md) |
 | 72 | 3 float32 | Bounding-box minimum |
 | 84 | 3 float32 | Bounding-box maximum |
 | 104 | uint16 | Number of stored vertex samples per submesh |
 | 106 | uint16 | Native timeline element count |
-| 108 | uint32 | Animation-related state field; semantics unconfirmed |
+| 108 | uint32 | Native timeline loop flag, validated by the animation decoder |
 | 112 | uint32 array | Submesh offsets |
 
 The header also has center/radius-like fields; the exporter does not need to assume their meaning. All decoded coordinates in every stored sample must fit the recorded bounding box within 1.001 source units, allowing the source float-to-int16 rounding.
@@ -153,7 +159,7 @@ The header also has center/radius-like fields; the exporter does not need to ass
 |---|---|---|
 | 0 | uint16 | 1 without a texture-reference block, 3 with one |
 | 2 | uint16 | Observed values 0 and 1; precise meaning unconfirmed |
-| 4 | uint32 | Native rendering flags, preserved as metadata |
+| 4 | uint32 | Native rendering flags: decoded blend/culling/color-animation fields, with remaining bits preserved |
 | 8 | uint16 | Vertex count N |
 | 10 | uint16 | Triangle count T |
 | 12 | uint32 | Index-buffer pointer |
@@ -195,11 +201,43 @@ There are three triangles with repeated indices in the original data. They are p
 
 ### Colors and material references
 
-Color records occupy four bytes per vertex. RGB are the first three bytes; the fourth byte is **not assumed to be alpha**. Some submeshes contain multiple color arrays, which the parser preserves. The current preview uses the first array.
+Color records occupy four bytes per vertex. RGB are the first three bytes; the fourth byte is **not vertex alpha**. The PC vertex writers generate alpha 255 for textured surfaces and 128 for untextured surfaces. Some submeshes contain multiple color arrays. The base GLB contains the first array; the material-animation manifest preserves every authored RGB sample for runtime playback. See [Native PC mesh materials](mesh_materials.md) for instruction addresses and the rendering-state evidence.
 
 A texture-reference block starts with uint16 zero, uint16 reference count, and a uint32 pointer to the reference-offset array. Each reference is eight bytes: uint32 resource ID plus four additional bytes. The final two bytes match texture width and height, with **zero representing 256**. The first two additional bytes remain uninterpreted.
 
-References resolve in the last preceding resource group containing texture chunks, falling back to global group 0. Every examined reference resolves, and every referenced dimension matches its RGBA texture. Multi-reference blocks exist; changing textures over time is outside the present exporter.
+References resolve in the last preceding resource group containing texture chunks, falling back to global group 0. Every examined reference resolves, and every referenced dimension matches its RGBA texture. Multi-reference blocks are ordered native texture sequences. Repeated texture IDs remain separate sequence slots; only identical PNG storage is deduplicated.
+
+### Material-animation export contract
+
+`tools/hugo_assets/material_animation.py::export_material_animations(catalog, output)`
+writes `material_animation_manifest.json` and `materials/textures/*.png` into a
+fresh importer staging directory. Its `materials` map is keyed by
+`g<group>_r<record>_p<part>` with zero-padded numeric components, for example
+`g070_r0044_p000`. Every entry contains native timeline words and looping,
+ordered `texture_sequence` frame descriptors with relative PNG paths,
+`color_samples` as byte RGB triples, `uv_samples` as byte pairs, vertex count,
+generated alpha, and explicit channel-animation flags. Paths are relative to
+the generated root. Container, source mesh, image payload and encoded PNG
+hashes retain provenance.
+
+The examined resource exports **483 animated parts**: 285 texture sequences,
+190 RGB-animated parts and 8 UV-animated parts. Their 2,775 texture slots use
+102 distinct PNG payload/dimension combinations. Every PNG is decoded again
+and checked byte-for-byte against its source RGBA image before publication.
+
+Animated source parts remain separate surfaces during material batching.
+Their names include `__hugo_anim_<key>` before the final blend selector.
+RGB/UV-animated surfaces also carry `TEXCOORD_1 = [source_vertex_index,
+source_part_index]`; this is an import-mapping channel, not a visual UV set.
+The runtime recovers the indices from Godot's UV2 array after any importer
+vertex reordering. The per-mesh limit of 128 surfaces and exact triangle/
+morph-attribute checks remain enforced. Texture-only parts need independent
+material identity but no vertex-array updates.
+
+Texture frame selection uses the raw source visual phase. RGB and UV use the
+native mesh timeline; interpolated RGB channels truncate to bytes, whereas UV
+interpolation stays fractional and uses the float32 `1/255` constant. These
+data require the runtime sampler; they do not add a guessed glTF animation FPS.
 
 ## 4. Measured geometry audit
 
@@ -246,15 +284,17 @@ The source node pattern begins with marker `0x03030303`, and the relevant refere
 
 **Axes and scale.** The GLBs use `(x, z, -y) * 0.01`, converting the observed Z-up coordinates to Y-up. The axis change has determinant +1, so it does not reverse triangle order. The scale is a fixed presentation choice, not a recovered physical unit. `hugo.glb` includes local body/head translations; `hugo_body.glb` retains the body's local origin. A scene/world transform is not applied.
 
-**UV.** Textured UV bytes are normalized by 256. GLB V follows the image's top-to-bottom convention. The selected character and palm have visually correct eye, clothing, shoe, bark and leaf placement with this mapping. The original renderer's exact edge-sampling rules have not been proven. The preview uses nearest filtering and clamp-to-edge.
+**UV.** Textured UV bytes are multiplied by float32 **1/255**, matching the native GT3 writers (`0x412fd3`, `0x412fe7`, constant `0x43e964`). GLB V follows the image's top-to-bottom convention. Animated byte UVs interpolate before normalization, without wrapping the interpolation across a seam. The original renderer's exact texture edge-sampling rules remain a separate limit; the base GLB uses nearest filtering and clamp-to-edge.
 
-**Brightness.** Textured RGB is normalized by **128**, so an original modulation value of 128 is neutral rather than half-brightness. Untextured RGB is normalized by 255. Values above 1 are clamped for glTF `COLOR_0`; highlights above the neutral level can consequently differ from the native renderer. Materials are unlit so the preview does not compound the source vertex lighting with an invented light setup.
+**Brightness.** Ordinary mesh RGB is normalized by **255** for both textured and untextured surfaces. The Windows renderer uploads source texture RGB without a brightness boost, writes the stored diffuse RGB bytes, and uses `D3DTOP_MODULATE` (`0x40f3d2..0x40f3db`). Byte 128 therefore represents approximately half intensity in this PC path. Materials are unlit so the preview does not compound the source vertex colors with an invented light setup. Particle colors use a separate recovered path and retain their own normalization.
 
-**Transparency and winding.** Source index order is retained. Materials are double-sided. A texture containing non-opaque pixels gets glTF `alphaMode: MASK` with cutoff 0.5. This is useful for the inspected preview, but it does not reproduce all native blending/culling flag combinations.
+**Transparency.** The native mesh selector is `(source_flags >> 29) & 3`: 0 is source-alpha blending, 1 additive, 2 destination multiplied by inverse source RGB, and 3 opaque. Material `extras.native_render` preserves these states, generated vertex alpha, the native depth-write flag, and the alpha-test cutoff **8/255**. Opaque textured surfaces with non-opaque image pixels use glTF `MASK` at that cutoff. The three nonopaque modes use a `BLEND` fallback; additive and inverse-source-color equations require the Godot material adapter because core glTF does not express them. Names retain `__hugo_blend_<selector>` for importers that omit material extras. Batching includes the complete source flags word, so two surfaces with equal texture/fallback settings but different native blend states cannot merge. No black color key or brightness-based discard is introduced.
+
+**Winding.** Source index order is retained. Materials remain double-sided for compatibility; the recovered native culling flag is preserved in metadata until the native camera/projection and Godot winding correspondence is checked. Full transparent sorting remains a separate rendering limit. See [Native PC mesh materials](mesh_materials.md) for the complete source proof.
 
 **Normals.** No original normal buffer is claimed as recovered. No reconstructed skeleton or skin weights are exported. A target engine can generate geometric normals if needed, but the proof materials do not depend on them.
 
-**Animation.** The native timeline is preserved as uint32 metadata without declaring a recovered fixed-point or interpolation format. Vertex positions are available as stored morph targets; animation speed, states, transition conditions, head motion across all actions, and texture/color animation remain future work. The preview does not silently invent those values.
+**Animation.** Timeline words use a high-16 sample index and low-12 Q12 fraction. Native transform tracks, state/action durations, distance-driven cycles, head motion and graph transitions are decoded by the campaign pipeline. The small preview profile remains static in a generic glTF viewer. Texture, RGB and UV playback uses the separate material-animation manifest and the actor's visual phase; these channels are not represented as position morph targets.
 
 ## Tests
 

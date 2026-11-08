@@ -3,10 +3,10 @@ config_version=5
 
 [application]
 config/name="Кузя — Алмазная лихорадка"
-config/description="Разработка ремастера · первый игровой прототип"
-run/main_scene="res://scenes/main.tscn"
+config/description="Восстановление оригинальной игры в Godot"
+run/main_scene="res://scenes/campaign.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/version="0.1.0-dev"
+config/version="0.2.0-dev"
 
 [display]
 window/size/viewport_width=1280

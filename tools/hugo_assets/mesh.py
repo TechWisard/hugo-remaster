@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import hashlib
+import math
 import struct
 
 import numpy as np
@@ -11,6 +12,54 @@ import numpy as np
 from .binary import Reader, require
 from .catalog import Catalog, Record
 from .mdic import sha256
+
+
+def decode_material_flags(flags: int, *, textured: bool = True) -> dict:
+    """Recover the PC surface render state, not the reversed sprite-mode enum.
+
+    C3DPSXSurface{G3,GT3} read byte7 of the source submesh (flags+3),
+    shift it by5 and mask3. The sorted D3D draw path applies that selector
+    directly; CPSXSprite instead queues ``3 - sprite_mode``.
+    """
+    require(isinstance(flags, int) and 0 <= flags <= 0xFFFFFFFF,
+            "Material flags must be an unsigned 32-bit integer")
+    selector = (flags >> 29) & 3
+    mode, source_factor, destination_factor, equation = (
+        ("alpha", "SRCALPHA", "INVSRCALPHA", "source * source_alpha + destination * (1 - source_alpha)"),
+        ("add", "ONE", "ONE", "source + destination"),
+        ("multiply_inverse", "ZERO", "INVSRCCOLOR", "destination * (1 - source_rgb)"),
+        ("opaque", "ONE", "ZERO", "source"),
+    )[selector]
+    return {
+        "source_flags": flags,
+        "source_flags_offset": 4,
+        "blend_selector": selector,
+        "blend_mode": mode,
+        "blend_src": source_factor,
+        "blend_dst": destination_factor,
+        "rgb_equation": equation,
+        "alpha_blend_enabled": selector != 3,
+        "depth_write": selector == 3,
+        "alpha_test": "GREATER_EQUAL",
+        "alpha_reference_byte": 8,
+        "alpha_cutoff": 8 / 255,
+        "double_sided": bool(flags & 0x01000000),
+        "native_cull_mode": "NONE" if flags & 0x01000000 else "CW",
+        # The fourth stored color byte is NOT alpha. The vertex writers
+        # construct 0xffRRGGBB for textured and 0x80RRGGBB for plain surfaces.
+        "vertex_alpha": 1.0 if textured else 128 / 255,
+        "alpha_source": "texture" if textured else "fixed_vertex_128_of_255",
+        "color_divisor": 255,
+        "texture_color_operation": "MODULATE" if textured else "DIFFUSE",
+        "source_color_animation": bool(flags & 0x04000000),
+        "native_draw_skipped": bool(flags & 0x90000000),
+        "uninterpreted_flags": flags & ~0xF5000000,
+        "meaning_confidence": "pc_renderer_instructions_verified",
+        "evidence_va": ["0x00412c25", "0x00412e9b", "0x00411e5f",
+                        "0x004108fa", "0x00410919", "0x00412b11",
+                        "0x00412fab", "0x0041327f", "0x0040f385",
+                        "0x0040f3d2", "0x00421fce", "0x00411b20"],
+    }
 
 
 @dataclass(frozen=True)
@@ -53,6 +102,108 @@ class Mesh:
     @property
     def triangle_count(self) -> int:
         return sum(len(p.faces) for p in self.parts)
+
+
+def material_animation_manifest(mesh: Mesh, part: Part) -> dict:
+    """Describe exact PC texture/color/UV sampling in source vertex order.
+
+    Stored vertices and UV use the mesh's Q12 timeline; texture selection
+    instead uses the original visual phase directly. Repeated texture IDs
+    are intentional sequence slots and must never be deduplicated.
+    """
+    count = part.vertices.shape[1]
+    animated_color = bool(part.flags & 0x04000000)
+    require(part.colors.shape == (mesh.sample_count if animated_color else 1, count, 4),
+            "Material color samples disagree with the native color-animation flag")
+    require(part.uv_bytes.shape == (mesh.sample_count, count, 2),
+            "Material UV samples disagree with stored vertex samples")
+    textured = bool(part.materials)
+    animated_uv = textured and bool(np.any(part.uv_bytes != part.uv_bytes[:1]))
+    animated_texture = len(part.materials) > 1
+    render = decode_material_flags(part.flags, textured=textured)
+    return {
+        "id": f"g{mesh.group:03d}_r{mesh.record_index:04d}_p{part.index:03d}",
+        "source_group": mesh.group, "source_record": mesh.record_index,
+        "part_index": part.index, "source_flags": part.flags,
+        "vertex_count": count, "stored_samples": mesh.sample_count,
+        "timeline_words": list(mesh.timeline_words),
+        "timeline_loop": bool(mesh.animation_flags & 1),
+        "source_color_animation": animated_color,
+        "animate_uv": animated_uv, "animate_texture": animated_texture,
+        "animated": animated_color or animated_uv or animated_texture,
+        "textured": textured,
+        "texture_sequence": [dict(texture_id=ref.texture_id, width=ref.width, height=ref.height)
+                             for ref in part.materials],
+        "color_samples": part.colors[:, :, :3].tolist(),
+        "uv_samples": (part.uv_bytes if animated_uv else part.uv_bytes[:1]).tolist() if textured else [],
+        "vertex_alpha": render["vertex_alpha"], "color_divisor": 255, "uv_divisor": 255,
+        "texture_frame_rule": "trunc(visual_phase * texture_count) % texture_count; phase in [0,1]",
+        "color_rule": "native timeline; lerp byte RGB; truncate channels toward zero; G/B first stored float32",
+        "uv_rule": "native timeline; lerp byte UV without seam wrapping; multiply float32(1/255)",
+        "source_fields": {"submesh_flags": 4, "submesh_vertex_pointer": 16,
+                          "submesh_color_pointer": 32, "submesh_texture_sequence_pointer": 36 if textured else None,
+                          "vertex_stride": 8, "vertex_uv_byte_offsets": [6, 7]},
+        "evidence_va": ["0x004142d5", "0x00412e05", "0x00412e7a", "0x00412f0b",
+                        "0x004130cc", "0x00413169", "0x0041319b", "0x00431478"],
+    }
+
+
+def texture_frame_index(count: int, phase: float) -> int:
+    """Native GT3 uses truncation then integer remainder, even at phase1."""
+    require(isinstance(count, int) and count > 0 and math.isfinite(phase) and 0 <= phase <= 1,
+            "Invalid texture sequence count or normalized visual phase")
+    # The caller supplies a float32 phase. x87 retains the multiplication
+    # result until _ftol; do not round phase*count back to float32 first.
+    return int(float(np.float32(phase)) * count) % count
+
+
+def sample_material_animation(info: dict, phase: float) -> dict:
+    """JSON-safe reference sample for importer/runtime conformance tests.
+
+    This imports the existing timeline helper lazily to avoid the
+    animation -> glTF -> mesh module cycle. No independent fake FPS is used.
+    """
+    from .animation import sample_timeline
+
+    require(math.isfinite(phase) and 0 <= phase <= 1, "Material phase must be normalized to [0,1]")
+    phase = float(np.float32(phase))
+    count = int(info["vertex_count"])
+    stored = int(info["stored_samples"])
+    require(count > 0 and stored > 0, "Material animation has no vertices/samples")
+    a, b, weight = sample_timeline(info["timeline_words"], stored, bool(info["timeline_loop"]), phase)
+    # 0x4143ab stores the computed interpolation weight as a 32-bit float.
+    weight = float(np.float32(weight))
+    colors = np.asarray(info["color_samples"], dtype=np.float64)
+    animated_color = bool(info.get("source_color_animation", False))
+    require(colors.shape == (stored if animated_color else 1, count, 3)
+            and bool(np.isfinite(colors).all()) and bool(((colors >= 0) & (colors <= 255)).all())
+            and bool((colors == np.floor(colors)).all()), "Invalid byte RGB sample arrays")
+    if animated_color:
+        color = colors[a] * (1 - weight) + colors[b] * weight
+        # Red stays on the x87 stack. G/B are saved to float temporaries
+        # (0x413121,0x413165 / 0x412abe,0x412b02) before _ftol.
+        color[:, 1:] = color[:, 1:].astype(np.float32)
+        color = np.trunc(color)
+    else:
+        color = colors[0]
+    rgb = color.astype(np.uint8)
+    alpha = float(info["vertex_alpha"])
+    require(math.isfinite(alpha) and 0 <= alpha <= 1, "Invalid generated vertex alpha")
+    rgba = np.column_stack((rgb.astype(np.float32) / np.float32(255),
+                            np.full(count, alpha, dtype=np.float32)))
+    uv_values = info.get("uv_samples", [])
+    uv_result = []
+    if uv_values:
+        uv = np.asarray(uv_values, dtype=np.float64)
+        require(uv.shape in ((1, count, 2), (stored, count, 2))
+                and bool(np.isfinite(uv).all()) and bool(((uv >= 0) & (uv <= 255)).all())
+                and bool((uv == np.floor(uv)).all()), "Invalid byte UV sample arrays")
+        sampled = uv[0] if len(uv) == 1 else uv[a] * (1 - weight) + uv[b] * weight
+        uv_result = (sampled * float(np.float32(1 / 255))).astype(np.float32).tolist()
+    texture_count = len(info.get("texture_sequence", []))
+    return {"sample_a": a, "sample_b": b, "sample_weight": weight,
+            "texture_frame_index": texture_frame_index(texture_count, phase) if texture_count else None,
+            "rgb_bytes": rgb.tolist(), "rgba": rgba.tolist(), "uv": uv_result}
 
 
 def parse_mesh(record: Record) -> Mesh:
@@ -101,6 +252,8 @@ def parse_mesh(record: Record) -> Mesh:
         color_size = material_offset - color_offset
         require(color_size % (nv * 4) == 0, f"{label}: invalid vertex-color buffer length")
         color_samples = color_size // (nv * 4)
+        require(color_samples == (samples if flags & 0x04000000 else 1),
+                f"{label}: color sample count disagrees with the native animation flag")
         r.check(vertex_offset, nv * 8 * samples, "vertex samples")
         raw = np.frombuffer(record.data, dtype=np.uint8, count=nv * 8 * samples, offset=vertex_offset).reshape(samples, nv, 8)
         vertices = raw[:, :, :6].copy().view("<i2").reshape(samples, nv, 3).astype(np.float32)

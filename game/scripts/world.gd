@@ -1,7 +1,7 @@
 class_name RemasterWorld
 extends Node3D
 ## Authored traversal course for validating the remaster's controls and imports.
-## Original level graphs are a separate next milestone, not reconstructed here.
+## Original chapters are loaded separately by campaign.gd / original_level.gd.
 
 const PlayerScript = preload("res://scripts/player.gd")
 const CameraScript = preload("res://scripts/follow_camera.gd")

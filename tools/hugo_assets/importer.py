@@ -23,12 +23,15 @@ KNOWN_SOURCES = {
 
 FIDELITY_NOTES = [
     "Exports are recovered original low-poly assets, not remastered geometry.",
-    "The Hugo preview uses the first stored local pose and three verified actor-reference links; full actor graphs and levels are not reconstructed.",
-    "hugo_body.glb contains stored vertex-sample morph targets, with no invented playback timing, animation state machine, skeletal rig or skin weights.",
-    "Only the first texture/color sample is displayed. Byte UVs use /256 and nearest sampling; native interpolation and texel-edge rules remain unverified.",
-    "Preview materials are unlit: textured RGB uses /128 with values clamped to [0,1], untextured RGB uses /255. Above-neutral highlights may differ from the native renderer.",
-    "Source triangle order is preserved; previews use double-sided geometry and alpha masking where PNG alpha is present. Native culling, blending, lighting and normals are not reconstructed.",
-    "GLB axes are (x,z,-y), with a fixed 0.01 preview scale. This is a presentation scale, not a claim about the original game's unit system.",
+    "The three preview files retain their initial-pose purpose. The campaign export reconstructs all eight original playable scene graphs separately.",
+    "Actor actions use recovered morph samples, transform tracks, Q12 timelines and native state tables; no skeletal rig or skin weights are invented.",
+    "Byte UVs use the recovered PC-renderer divisor 255 and nearest sampling. Native material-animation data is exported separately from the initial glTF pose.",
+    "Ordinary PC mesh materials use source RGB/255. Vertex alpha is 1 for textured surfaces and 128/255 for untextured surfaces; the fourth source color byte is not alpha. Particle RGB/128 is a separate source path.",
+    "Source triangle order and native blend selectors are preserved. The Godot adapter implements alpha, additive, inverse-source multiplication and opaque draw modes. Preview geometry remains double-sided; native lighting and exact culling are not fully reconstructed.",
+    "GLB axes are (x,z,-y), with fixed scale 0.01. Native speeds, gravity, cameras and collision geometry are converted consistently to that scale.",
+    "Native collision selection and parameters are recovered, while contact resolution uses Godot physics rather than the legacy solver.",
+    "Movie conversion retains source resolution/frame rate; re-encoding to Theora/Vorbis is not byte-identical to the Bink source.",
+    "Source particle equations are sampled at 60 Hz. Legacy frame-dependent drag/gravity, spatial audio panning and some material effects can differ.",
 ]
 
 
@@ -93,7 +96,9 @@ def read_source(source: Path) -> bytes:
     return data
 
 
-def import_original(source: Path, project_root: Path, progress: Callable[[str], None] | None = None) -> dict:
+def import_original(source: Path, project_root: Path, progress: Callable[[str], None] | None = None,
+                    *, include_campaign: bool = True, media_dir: Path | None = None,
+                    music_dir: Path | None = None, ffmpeg: str = "ffmpeg") -> dict:
     say = progress or (lambda message: None)
     root = project_root.resolve()
     source = source.resolve()
@@ -103,6 +108,11 @@ def import_original(source: Path, project_root: Path, progress: Callable[[str], 
     imports = managed_path(root, ".work/imports")
     require(not source.is_relative_to(generated.resolve()) and not source.is_relative_to(imports.resolve()),
             "Keep the original HUGO4.CD outside game/assets/generated and .work/imports; those directories are managed outputs")
+    for media_source in [media_dir, music_dir]:
+        if media_source is not None:
+            require(not media_source.resolve().is_relative_to(generated.resolve())
+                    and not media_source.resolve().is_relative_to(imports.resolve()),
+                    "Keep original movie/music inputs outside the managed generated/import directories")
     say("Reading local HUGO4.CD; no downloads or game executables are used.")
     raw = read_source(source)
     source_hash = sha256(raw)
@@ -141,8 +151,36 @@ def import_original(source: Path, project_root: Path, progress: Callable[[str], 
                          payload_offset=s.mesh.payload_offset, raw_sha256=s.mesh.raw_sha256,
                          transform_records=list(s.transform_records), stored_vertex_samples=s.mesh.sample_count)
                     for s in selected])
+            campaign_report = None
+            animation_report = None
+            material_report = None
+            gameplay_report = None
+            media_report = None
+            if include_campaign:
+                from .levels import export_campaign
+                from .animation import export_animations
+                from .material_animation import export_material_animations
+                from .gameplay import export_gameplay
+                say("Reconstructing original level instances and source scene graphs...")
+                campaign_report = export_campaign(catalog, output)
+                say("Recovering original gameplay records, event targets and sound resources...")
+                gameplay_report = export_gameplay(catalog, output)
+                say("Exporting original actor animation samples and native timelines...")
+                animation_report = export_animations(catalog, output)
+                say("Exporting original texture, color and UV animation samples...")
+                material_report = export_material_animations(catalog, output)
+            if media_dir is not None:
+                from .media import convert_media
+                media_report = convert_media(media_dir, output, music_dir, ffmpeg, say, cache_dir=generated)
+            elif music_dir is not None:
+                raise FormatError("--music-dir requires --media-dir pointing to the local game directory")
+            for path in output.rglob("*"):
+                if path.is_file():
+                    relative = path.relative_to(output).as_posix()
+                    if relative not in files:
+                        files[relative] = {"sha256": sha256(path.read_bytes()), "size_bytes": path.stat().st_size}
             manifest = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "importer_version": __version__,
                 "source": {
                     "filename": source.name, "size_bytes": len(raw), "sha256": source_hash,
@@ -158,13 +196,21 @@ def import_original(source: Path, project_root: Path, progress: Callable[[str], 
                                                   scene=sum(c.kind == 4 for c in container.chunks))},
                 "coordinate_conversion": {"axes": ["x", "z", "-y"], "scale": SOURCE_UNIT_SCALE,
                                           "world_scene_transform_applied": False},
-                "material_preview": {"unlit": True, "textured_rgb_divisor": 128,
+                "material_preview": {"unlit": True, "textured_rgb_divisor": 255,
                                      "untextured_rgb_divisor": 255, "color_range_clamped": [0, 1],
-                                     "uv_divisor": 256, "filter": "nearest", "double_sided": True,
-                                     "texture_alpha": "MASK when non-opaque", "alpha_cutoff": 0.5},
+                                     "uv_divisor": 255, "filter": "nearest", "double_sided": True,
+                                     "texture_alpha": "source opaque: MASK; source nonopaque: BLEND with native runtime adapter",
+                                     "alpha_cutoff": 8 / 255,
+                                     "vertex_alpha": {"textured": 1, "untextured": 128 / 255},
+                                     "native_blend_selector": "(flags >> 29) & 3"},
                 "files": files,
                 "work_cache": f".work/imports/{source_hash}",
                 "fidelity_limits": FIDELITY_NOTES,
+                "campaign": campaign_report,
+                "animations": animation_report,
+                "materials": material_report,
+                "gameplay": gameplay_report,
+                "media": media_report,
             }
             write_json(output / "asset_manifest.json", manifest)
             cache = imports / source_hash
@@ -174,8 +220,7 @@ def import_original(source: Path, project_root: Path, progress: Callable[[str], 
             assets_parent.mkdir(parents=True, exist_ok=True)
             require(assets_parent.resolve().is_relative_to(root), "Asset parent escaped the project root")
             staged_assets = Path(tempfile.mkdtemp(prefix=".generated-staging-", dir=assets_parent))
-            for path in (cache / "outputs").iterdir():
-                shutil.copyfile(path, staged_assets / path.name)
+            shutil.copytree(cache / "outputs", staged_assets, dirs_exist_ok=True)
             for filename, info in files.items():
                 require(sha256((staged_assets / filename).read_bytes()) == info["sha256"],
                         f"Staged asset hash mismatch: {filename}")
