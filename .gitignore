@@ -1,0 +1,32 @@
+# Local original-game inputs and everything derived from them
+original/
+.work/
+game/assets/generated/
+game/assets/.generated-*/
+
+# Godot import cache and exports
+.godot/
+game/.godot/
+builds/
+*.tmp
+*.log
+*.pck
+*.exe
+*.dll
+*.iso
+*.cd
+*.CD
+
+# Python and local tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+
+# Private development screenshots / recordings
+captures/

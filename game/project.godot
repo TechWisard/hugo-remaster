@@ -1,0 +1,31 @@
+; Open this file in Godot 4.7.2 or newer compatible Godot 4.x.
+config_version=5
+
+[application]
+config/name="Кузя — Алмазная лихорадка"
+config/description="Разработка ремастера · первый игровой прототип"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/version="0.1.0-dev"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+
+[physics]
+common/physics_ticks_per_second=60
+3d/default_gravity=22.0
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/default_filters/anisotropic_filtering_level=2
+anti_aliasing/quality/msaa_3d=2
+environment/defaults/default_clear_color=Color(0.64, 0.82, 0.89, 1)
+
+[audio]
+driver/enable_input=false
