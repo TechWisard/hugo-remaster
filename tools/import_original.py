@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--media-dir", type=Path, help="Optional local directory containing original BIK movies and CREDITS.TXT")
     parser.add_argument("--music-dir", type=Path, help="Optional local directory with original Track02.ogg through Track09.ogg")
     parser.add_argument("--ffmpeg", default="ffmpeg", help="Local ffmpeg executable used for BIK conversion")
-    parser.add_argument("--version", action="version", version="hugo-remaster importer 0.2.0")
+    parser.add_argument("--version", action="version", version="hugo-remaster importer 0.3.0")
     args = parser.parse_args(argv)
     try:
         from hugo_assets.binary import FormatError

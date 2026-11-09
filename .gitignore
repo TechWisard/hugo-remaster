@@ -2,6 +2,7 @@
 original/
 .work/
 game/assets/generated/
+game/assets/hd/
 game/assets/.generated-*/
 
 # Godot import cache and exports

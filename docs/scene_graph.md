@@ -147,7 +147,7 @@ Getaway camera effect `0x22000009`.
 
 | Тип | Класс | World transform reference | Визуальный ресурс/граф |
 |---:|---|---:|---:|
-| 10000 | Hugo | 16 | primary graph pointer 8; auxiliary graph 12 |
+| 10000 | Hugo | 16 | primary graph pointer 8; ground-shadow graph 12 |
 | 10101 | CTargetCam | 28 | camera visual; alternate transform 40 |
 | 10200 | CActorTrigger | 8 | явные данные области, не обычная модель |
 | 10203 | CNotifyTrigger | 8 | данные события |
@@ -503,21 +503,51 @@ Native culling correspondence, lighting и полная transparent sorting
 Для частиц восстановлены исходные данные и update equations; legacy clock
 и три неиспользованных поля emitter остаются неподтвержденными.
 
-Дополнительный graph Hugo по указателю `record+0x0C` ресурса типа 10000
-структурно проверяется в `levels.py`; его условие активации пока не
-восстановлено. Manifest сохраняет `auxiliary_graph_offset` и
-`auxiliary_graph_render_policy: activation_not_recovered`. Этот отдельный
-graph не включается в отображаемые действия персонажа.
+Дополнительный graph Hugo по указателю `record+0x0C` ресурса типа 10000 —
+**наземная тень**. Конструктор сохраняет relocated pointer в том же runtime
+поле (`0x401BEA–0x401BFD`); render event `0x22020005` задаёт ему pose и
+рисует вместе с основным персонажем (`0x402F59–0x402F93`). Его state и phase
+остаются нулевыми. Все восемь auxiliary расположены по смещению 6684 и
+содержат один узел с identity transform, статичной плоскостью из четырёх
+вершин и двух треугольников и одной и той же текстурой 64×64. Native material
+selector 2 реализуется через inverse-source-color adapter.
 
-Уже восстановлены **27 других графов смерти от поверхностей**: их указатели
+Manifest уровня сохраняет `auxiliary_graph_offset` и
+`auxiliary_graph_render_policy: native_ground_shadow`; validation считает
+`player_shadow_graphs`. Граф экспортируется отдельно в
+`animations/hugo_shadow.glb` и описывается в `animation_manifest.json.hugo_shadow`.
+Он не добавляет действия в основной граф и не размещается как неподвижная
+декорация уровня. Мировую позу ему задаёт presentation-контроллер игрока.
+
+Исходная поза тени сохраняет X/Y и basis render transform персонажа,
+заменяет Z на cached floor `actor+0x24C` и масштабирует basis на
+`1 / (1 + float32(0.0045) * (actor_z - floor_z))`
+(`0x402EF8–0x402F63`, константа `0x43E444`). Повторная нормализация высоты
+модели и минимальный размер отсутствуют. Тень не выравнивается по нормали
+поверхности. Пол исходник ищет в XY: `0x4211E0` берёт наибольшую высоту
+из четырёх точек `(x±50,y±50)` source units. Godot-адаптер проверяет четыре
+вертикальных запроса к native colliders вокруг ног и выбирает самое высокое
+попадание ниже ног. Это современная адаптация; полный legacy collision
+solver и его обработка платформ/ступеней не воспроизводятся.
+
+Основная модель и тень разделяют native blink по маске `0x20` оставшихся
+единиц таймера 300 ticks/s (`0x402F66–0x402F93`). Исходник исключает state 6
+и pending-death flag `actor+0x4C4` из мигания. Значение последнего прослежено
+до смертельного отбрасывания (`0x402833`, `0x403A49–0x403A88`), но полный
+переход через смертельное отбрасывание пока не объявляется восстановленным.
+Детали экспорта, формулы, visibility policy и границы Godot-адаптации —
+в [animation.md](animation.md).
+
+**27 графов смерти от поверхностей** имеют другой источник: их указатели
 находятся в `CDefaultSegment` типа 10400 по адресу
 `0x9C + surface_type * 52 + 0x14`. `animation.py` экспортирует их в отдельные
 `animations/surface_death_*.glb` и связывает с исходной поверхностью через
 `animation_manifest.json.surface_deaths`. `original_level.gd` вызывает
 `player.play_death_for_surface(group, record, offset)` при соответствующей
 смерти. Их активация подтверждена native death entry `0x403C36..0x403C4C`
-и render replacement `0x402E2B..0x402E93`; ограничение дополнительного графа
-Hugo к этим 27 профилям не относится. См. [animation.md](animation.md).
+и render replacement `0x402E2B..0x402E93`. При таком replacement ранний выход
+из рендера исключает и обычную модель, и её тень; runtime скрывает тень
+во время `surface_death_*`. См. [animation.md](animation.md).
 
 Synthetic tests не содержат данных игры. Они проверяют ancestor scopes,
 относительные state pointers, corruption/cycles, аффинную композицию,

@@ -1,0 +1,279 @@
+{
+  "schema": 1,
+  "snapshot_date": "2026-11-09",
+  "route": "external_windows_x64_opengl_gitc_dlss_nr",
+  "target_gpu": "RTX 4090; candidate RTX devices are individually probed",
+  "public_distribution": "scripts and this lock only; generated dependency pack is private",
+  "components": [
+    {
+      "id": "reshade",
+      "version": "6.8.0 Addon",
+      "type": "zip",
+      "artifact": {
+        "url": "https://reshade.me/downloads/ReShade_Setup_6.8.0_Addon.exe",
+        "cache_name": "ReShade_Setup_6.8.0_Addon.exe",
+        "size": 4318424,
+        "sha256": "afe4c8f13048306307983b8b3d41d5bf00a86820440b0e57dea10950e1176445"
+      },
+      "members": [
+        {
+          "member": "ReShade64.dll",
+          "destination": "opengl32.dll",
+          "size": 5592064,
+          "sha256": "0cee63f9c9f13f3ac909c5b4903f4dbb4b719a7ab3b4f13b0deaf83c814b94f7"
+        }
+      ],
+      "license": "BSD-3-Clause; installer opened only as ZIP"
+    },
+    {
+      "id": "gitc_uplift",
+      "version": "1.8.0",
+      "type": "zip",
+      "artifact": {
+        "url": "https://github.com/ghostinthecamera/GITC-Uplift/releases/download/v1.8.0/GITC-Uplift-1.8.0.zip",
+        "cache_name": "GITC-Uplift-1.8.0.zip",
+        "size": 3835456,
+        "sha256": "ec72c7f844f831dfaf647c051983a4ee1452582d1deeef0bf6ed6e89a19170d8"
+      },
+      "members": [
+        {
+          "member": "Addons/gitc-uplift.addon64",
+          "destination": "gitc-uplift.addon64",
+          "size": 6197248,
+          "sha256": "3c939d99e22d1039bfc82222fd8dbc432db493d13ccec34efa26ef8cc39bf773"
+        },
+        {
+          "member": "Addons/gitc-uplift-helper64.exe",
+          "destination": "gitc-uplift-helper64.exe",
+          "size": 3312128,
+          "sha256": "fe1afc03bd70682e29b8fd46c3fe1b777609526317571314268c20e2d518e4b7"
+        },
+        {
+          "member": "Shaders/Uplift.fx",
+          "destination": "reshade-shaders/Shaders/Uplift.fx",
+          "size": 10040,
+          "sha256": "04f7d632118072b3709a1ab5700867816f582e2a1be484e1cecd9e1b95557bf7"
+        },
+        {
+          "member": "Shaders/UpliftMask.fx",
+          "destination": "reshade-shaders/Shaders/UpliftMask.fx",
+          "size": 1383,
+          "sha256": "df89b186d140f28aa27998a524421038aadceb69c8bad9cab24d33bf8d274314"
+        },
+        {
+          "member": "LICENSE",
+          "destination": "licenses/GITC-Uplift-LICENSE.txt",
+          "size": 1094,
+          "sha256": "0c6f625ad45e4fd6a1754731afc182ce24d708139bdc6459859673ecdf329b35"
+        },
+        {
+          "member": "THIRD_PARTY_NOTICES.md",
+          "destination": "licenses/GITC-Uplift-THIRD-PARTY-NOTICES.md",
+          "size": 12987,
+          "sha256": "4ca96e94a418d4e222aee4b486308c0fbda368b408a02157b6fcba1ce680fdc9"
+        },
+        {
+          "member": "README.md",
+          "destination": "licenses/GITC-Uplift-README.md",
+          "size": 5463,
+          "sha256": "da8996ebb738e377b0115a036f8e1c59681a02522147eb81332829ddf2bd3b68"
+        }
+      ],
+      "source_commit": "0d73f2102032dcf8df24c7ff0f18315911f4af59",
+      "license": "MIT and included third-party notices"
+    },
+    {
+      "id": "dlss_nr_compat",
+      "version": "310.9.16 compat-fp16 (RHI: 20/30/40/50)",
+      "type": "zip",
+      "artifact": {
+        "url": "https://github.com/RankFTW/rhi-repo/releases/download/dlssnr-310.9.16/nvngx_dlssnr_310.9.16.zip",
+        "cache_name": "nvngx_dlssnr_310.9.16.zip",
+        "size": 192378839,
+        "sha256": "dbeb1f2790b5c621887db99b1a56ac8bd5cb35207e8c074cbb806710f7460cab"
+      },
+      "members": [
+        {
+          "member": "nvngx_dlssnr.dll",
+          "destination": "GITC-Uplift/nvngx_dlssnr.dll",
+          "size": 276162560,
+          "sha256": "cdfa6c1ec784867182164c7836f324f087b5c9f374d0c9fe46f54999feabf3ed"
+        }
+      ],
+      "selection_source": "https://github.com/RankFTW/RHI/blob/939b1d9066763797ded3bedf30bea5175b6dcc3a/dlss_manifest.json",
+      "upstream_compatibility_evidence": "https://github.com/ghostinthecamera/GITC-Uplift/releases/tag/v1.3.2",
+      "license": "NVIDIA model/runtime with community compatibility modifications; no license to rehost is asserted",
+      "hardware_validation": "upstream reports RTX 4090 D3D12/Vulkan; this Godot/OpenGL integration requires the local probe"
+    },
+    {
+      "id": "lumenite_motion",
+      "version": "b50d47c0867a9a6633c8c29c410562ffc68be483",
+      "type": "zip",
+      "artifact": {
+        "url": "https://codeload.github.com/umar-afzaal/LumeniteFX/zip/b50d47c0867a9a6633c8c29c410562ffc68be483",
+        "cache_name": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483.zip",
+        "size": 338310,
+        "sha256": "b241c33c5359fd3ca98c0ea5bb4d1148c6e7b659952d64f148c9674a3bc7730d"
+      },
+      "members": [
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Shaders/include/lumenite_ColorManagement.fxh",
+          "destination": "reshade-shaders/Shaders/include/lumenite_ColorManagement.fxh",
+          "size": 7811,
+          "sha256": "116d3c41cd48f7787a2ed87eefc65fb2d9083fc1ab609766a3fbcca3e62649a6"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Shaders/include/lumenite_Compute.fxh",
+          "destination": "reshade-shaders/Shaders/include/lumenite_Compute.fxh",
+          "size": 1843,
+          "sha256": "736e3f39fc0c48a405c4d10b0d158502009db940e2673ff778e6b919d3c1a55f"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Shaders/include/lumenite_Helpers.fxh",
+          "destination": "reshade-shaders/Shaders/include/lumenite_Helpers.fxh",
+          "size": 3270,
+          "sha256": "8826d613944be27e14095982b20098fff6d45e91c7d4028473c2f5b784c80028"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Shaders/include/lumenite_Projections.fxh",
+          "destination": "reshade-shaders/Shaders/include/lumenite_Projections.fxh",
+          "size": 3523,
+          "sha256": "709ec414649b74e573ca0f12a5ef25998d332238f7cab14a3d91053c8d388cab"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Shaders/lumenite_Kernel.fx",
+          "destination": "reshade-shaders/Shaders/lumenite_Kernel.fx",
+          "size": 84823,
+          "sha256": "e88edd6a95c70512e0135007228b7afd3ec811fa744298d32d2477434fffa4d8"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/Textures/lumenite_bluenoise256.png",
+          "destination": "reshade-shaders/Textures/lumenite_bluenoise256.png",
+          "size": 259314,
+          "sha256": "2ad9e5b0bd28ddff569dbd756a551fe8e681b67eb72a83bb027434e1be24122b"
+        },
+        {
+          "member": "LumeniteFX-b50d47c0867a9a6633c8c29c410562ffc68be483/LICENSE.md",
+          "destination": "licenses/LumeniteFX-LICENSE.md",
+          "size": 4761,
+          "sha256": "e7db77f66f2d17b832823a93ef9350c4e475c5887e13638b5dd1160ff0ba2f28"
+        }
+      ],
+      "license": "AGNYA rev 1.4; private local installation, public rehosting prohibited",
+      "purpose": "estimated optical-flow motion vectors, not engine geometry vectors"
+    },
+    {
+      "id": "reshade_headers",
+      "version": "fd0022170615ce0d8162d219bff07232fa6dd84f",
+      "type": "zip",
+      "artifact": {
+        "url": "https://codeload.github.com/crosire/reshade-shaders/zip/fd0022170615ce0d8162d219bff07232fa6dd84f",
+        "cache_name": "reshade-headers.zip",
+        "size": 58091,
+        "sha256": "a3b110ba5118f3b944d74f0b0746c21280071d389ed98d615bf3c4b3a1778586"
+      },
+      "members": [
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/Blending.fxh",
+          "destination": "reshade-shaders/Shaders/Blending.fxh",
+          "size": 18872,
+          "sha256": "1eab08b853014fd6aaaae6783c5052de2ec2a74792c149635e4ed44a58660ba3"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/DisplayDepth_L10N.fxh",
+          "destination": "reshade-shaders/Shaders/DisplayDepth_L10N.fxh",
+          "size": 17519,
+          "sha256": "f7d896885ecdb3f4953e069a09c16381ceb0c3a87d12025c3496d6986e67507d"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/DrawText.fxh",
+          "destination": "reshade-shaders/Shaders/DrawText.fxh",
+          "size": 9359,
+          "sha256": "b79cc4dfb3e98bcf4c06193d00ea7631d74f467f73a4deeeee13e71336d3e680"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/Macros.fxh",
+          "destination": "reshade-shaders/Shaders/Macros.fxh",
+          "size": 21411,
+          "sha256": "78d8974469b0e7bb2fdd5c6a98ee6304d03a614ffd2bc2a66985a54ff5f9b3a0"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/ReShade.fxh",
+          "destination": "reshade-shaders/Shaders/ReShade.fxh",
+          "size": 4250,
+          "sha256": "6dabfbbaf968c3871905d2ea17f96572ff7b1cec01310b5d0e5252b66b30174f"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/ReShadeUI.fxh",
+          "destination": "reshade-shaders/Shaders/ReShadeUI.fxh",
+          "size": 9930,
+          "sha256": "78adf672df47460297eb9fe6dd238d2aafa24510b52b84feb1a745dff70eb901"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Shaders/TriDither.fxh",
+          "destination": "reshade-shaders/Shaders/TriDither.fxh",
+          "size": 3475,
+          "sha256": "d6f780996889c0ea2efebde26b515c4acc1ad4310e06affc3d5d42e2f325c42d"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/Textures/FontAtlas.png",
+          "destination": "reshade-shaders/Textures/FontAtlas.png",
+          "size": 14853,
+          "sha256": "11a711a8167d1c1606892e6fa6f661a477e749d6cbdb1ff700ac381842066ec3"
+        },
+        {
+          "member": "reshade-shaders-fd0022170615ce0d8162d219bff07232fa6dd84f/README.md",
+          "destination": "licenses/ReShade-shaders-README.md",
+          "size": 766,
+          "sha256": "bb6aaf14074e4edd73abf730ce0ea11cc97267ab4b219f791e913e5325dfece5"
+        }
+      ],
+      "license": "per-file notices retained"
+    },
+    {
+      "id": "reshade_license",
+      "version": "pinned source",
+      "type": "file",
+      "artifact": {
+        "url": "https://raw.githubusercontent.com/crosire/reshade/v6.8.0/LICENSE.md",
+        "cache_name": "reshade-LICENSE.md",
+        "size": 1481,
+        "sha256": "237ded5b8344f820113efab1e65e91e1f159d9202c5b4856606a0590d3ffdab0"
+      },
+      "destination": "licenses/ReShade-LICENSE.md"
+    },
+    {
+      "id": "nvidia_ngx_license",
+      "version": "pinned source",
+      "type": "file",
+      "artifact": {
+        "url": "https://raw.githubusercontent.com/NVIDIA-RTX/Streamline/625db07d4bca5abc67d781c42af7e7fb0761f1b6/external/ngx-sdk/license.txt",
+        "cache_name": "nvngx-license.txt",
+        "size": 26727,
+        "sha256": "3027f23ca5a46dd9cb8183fbd522983a86f64d7daac5982912bf9f214671f294"
+      },
+      "destination": "licenses/NVIDIA-NGX-license.txt"
+    }
+  ],
+  "required_pe_exports": {
+    "opengl32.dll": [
+      "ReShadeRegisterAddon",
+      "ReShadeUnregisterAddon",
+      "wglCreateContext",
+      "wglGetProcAddress"
+    ],
+    "gitc-uplift.addon64": [
+      "AddonInit",
+      "AddonUninit"
+    ],
+    "gitc-uplift-helper64.exe": [],
+    "GITC-Uplift/nvngx_dlssnr.dll": [
+      "NVSDK_NGX_D3D12_Init_Ext",
+      "NVSDK_NGX_D3D12_CreateFeature",
+      "NVSDK_NGX_D3D12_EvaluateFeature",
+      "NVSDK_NGX_D3D12_ReleaseFeature",
+      "NVSDK_NGX_D3D12_Shutdown1",
+      "NVSDK_NGX_D3D12_PopulateParameters_Impl"
+    ]
+  }
+}

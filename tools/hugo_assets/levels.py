@@ -41,7 +41,7 @@ FIDELITY_LIMITS = [
     "GLB transforms start at their stored first matrix; native timing is in the level manifest, not baked glTF clips.",
     "Fall-trigger visual graphs are exported under Triggers for inspection and must be hidden until their runtime event.",
     "CEmitter parameters, sprite images and action anchors are decoded; the legacy update-clock frequency and three unused emitter words remain unverified.",
-    "The player's auxiliary graph is catalogued but not activated without its runtime condition. Type-2000 is a non-mesh camera visual.",
+    "The player's auxiliary graph is the recovered ground shadow, exported separately in animation_manifest.hugo_shadow. Native scale and blink conditions are decoded; Godot support queries do not reproduce the complete native collision solver. Type-2000 is a non-mesh camera visual.",
     "Backmap geometry requires its recovered camera-centered placement policy in the runtime.",
     "Native terrain collision triangles, quadtree and numeric surface IDs are recovered; a Godot physics response still differs from native XY height queries.",
     "Materials retain decoded native blend selectors and vertex alpha; additive and inverse-source-color modes require the runtime adapter because core glTF cannot express them.",
@@ -470,8 +470,8 @@ def assemble_level(catalog: Catalog, main_group: int, frame: int = 0) -> LevelAs
                 if record.kind == 10000:
                     auxiliary = parse_graph(record, reader.u32(12))
                     owner["auxiliary_graph_offset"] = auxiliary.offset
-                    owner["auxiliary_graph_render_policy"] = "activation_not_recovered"
-                    counts["unplaced_auxiliary_graphs"] += 1
+                    owner["auxiliary_graph_render_policy"] = "native_ground_shadow"
+                    counts["player_shadow_graphs"] += 1
             elif record.kind == 10403:
                 target = index.resolve(group, reader.u32(8))
                 yaw_relative = reader.u32(16)
@@ -785,7 +785,9 @@ def export_campaign(catalog: Catalog, output: Path) -> dict:
     index = SceneIndex(catalog)
     audit = index.audit()
     entries = []
-    with tempfile.TemporaryDirectory(prefix=".level-stage-", dir=output) as temporary:
+    # Scratch siblings cannot be included in the asset inventory or copied to
+    # the game if a filesystem watcher leaves a delayed temporary directory.
+    with tempfile.TemporaryDirectory(prefix=".level-stage-", dir=output.parent) as temporary:
         stage = Path(temporary)
         for main in PLAYABLE_MAIN_GROUPS:
             assembly = assemble_level(catalog, main)

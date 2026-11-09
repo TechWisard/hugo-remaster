@@ -67,8 +67,47 @@ func _run() -> void:
 	_check(not level.player.controls_enabled and not level.damage_player(1000, level.player.global_position), "game over cannot move or spend another life")
 	level.queue_free()
 	await _ticks(2)
+	await _factory_area_reset()
 	print("NATIVE_LIFE checks=", checks, " failures=", JSON.stringify(failures))
 	quit(0 if failures.is_empty() else 1)
+
+
+func _factory_area_reset() -> void:
+	for candidate: Dictionary in _json("res://assets/generated/campaign.json").levels:
+		if str(candidate.id) == "g055":
+			entry = candidate
+			break
+	level_data = _json("res://assets/generated/" + str(entry.manifest_path))
+	var level := _level()
+	await _ticks(40)
+	var areas: Array = level._owner_areas.get("g056_o0209_t10204", [])
+	_check(not areas.is_empty(), "Factory contains the real source lethal Area")
+	if areas.is_empty():
+		level.queue_free()
+		await _ticks(2)
+		return
+	var area: Area3D = areas[0]
+	var collision: CollisionShape3D = area.get_child(0) as CollisionShape3D
+	var fatal_contacts: Array[int] = []
+	level.player.hurt_received.connect(func(amount: int) -> void:
+		if amount >= 1000:
+			fatal_contacts.append(Engine.get_physics_frames()))
+	# Enter the actual exported kill volume. Its body_entered signal, native
+	# death, scope reload and checkpoint reset must all execute normally.
+	level.player.global_position = collision.global_position
+	level.player.velocity = Vector3.ZERO
+	await _ticks(100)
+	_check(fatal_contacts.size() == 1 and level.lives == 3,
+		"one source lethal overlap spends one life across scope reactivation")
+	_check(level.player.global_position.distance_to(level.spawn_point) < 1.0 and level.health == level.max_health,
+		"a reset player remains alive outside the old lethal Area")
+	level.player.global_position = collision.global_position
+	level.player.velocity = Vector3.ZERO
+	await _ticks(100)
+	_check(fatal_contacts.size() == 2 and level.lives == 2,
+		"re-entering the same lethal Area after recovery still spends exactly one life")
+	level.queue_free()
+	await _ticks(2)
 
 
 func _level(saved: Dictionary = {}) -> OriginalLevel:

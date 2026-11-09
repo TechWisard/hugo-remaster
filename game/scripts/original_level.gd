@@ -215,6 +215,12 @@ func _find_spawn() -> Vector3:
 func _create_player() -> void:
 	player = PlayerScript.new()
 	player.name = "Hugo"
+	# A resumed player is a new instance, but actors retain the IDs of attacks
+	# they already received. Older v2 saves lack the player's counter, so recover
+	# its lower bound from those actors before accepting another attack.
+	player.attack_serial = maxi(0, int(restored_run.get("attack_serial", 0)))
+	for saved_actor: Dictionary in restored_run.get("actors", {}).values():
+		player.attack_serial = maxi(player.attack_serial, int(saved_actor.get("last_damage_id", -1)))
 	player.character_height = 3.33077
 	var size_ratio: float = player.character_height / 1.7
 	if not player.set_native_configuration(gameplay.get("native_player", {}).get("movement", {})):
@@ -530,7 +536,7 @@ func _create_entities() -> void:
 			var area := _owner_area(owner, native, 1.0)
 			area.name = "Fall_" + id
 			area.body_entered.connect(func(body: Node3D) -> void:
-				if body == player and not completed and _native_owner_active(id):
+				if body == player and not completed and _native_owner_active(id) and _current_player_area_contact(area):
 					damage_player(int(native.get("damage", 1000)), area.global_position))
 			_trigger_count += 1
 		elif kind == 10300 and owner_nodes.has(id) and native.has("state_machine"):
@@ -626,6 +632,36 @@ func _owner_area(owner: Dictionary, native: Dictionary, padding: float) -> Area3
 	return area
 
 
+func _current_player_area_contact(area: Area3D) -> bool:
+	# Reactivating scope monitoring can deliver an old body_entered two physics
+	# ticks after a checkpoint teleport. Check current poses before lethal damage;
+	# the Area remains the contact detector, so this adds no immunity interval.
+	var body_shape: CollisionShape3D = player.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if body_shape == null or body_shape.disabled or body_shape.shape == null:
+		return false
+	var half: Vector3
+	if body_shape.shape is BoxShape3D:
+		half = (body_shape.shape as BoxShape3D).size * 0.5
+	elif body_shape.shape is CapsuleShape3D:
+		# Conservative box for the asset-free prototype; native Hugo uses a box.
+		var capsule: CapsuleShape3D = body_shape.shape as CapsuleShape3D
+		half = Vector3(capsule.radius, capsule.height * 0.5, capsule.radius)
+	else:
+		return false
+	half += Vector3.ONE * (body_shape.shape.margin + player.safe_margin)
+	var body_box: Dictionary = GraphScript.make_box(body_shape.global_transform, Vector3.ZERO, half)
+	for child: Node in area.get_children():
+		var shape: CollisionShape3D = child as CollisionShape3D
+		if shape == null or shape.disabled or not shape.shape is BoxShape3D:
+			continue
+		var box: BoxShape3D = shape.shape as BoxShape3D
+		var area_box: Dictionary = GraphScript.make_box(shape.global_transform, Vector3.ZERO,
+			box.size * 0.5 + Vector3.ONE * box.margin)
+		if GraphScript.boxes_intersect(body_box, area_box):
+			return true
+	return false
+
+
 func collect_pickup(id: String, native: Dictionary, area: Area3D = null) -> bool:
 	if collected.has(id) or _collecting.has(id) or completed or not _native_owner_active(id):
 		return false
@@ -713,6 +749,8 @@ func run_state() -> Dictionary:
 		"completed": completed, "finish_rewards_applied": finish_rewards_applied,
 		"checkpoint_id": checkpoint_id, "elapsed": elapsed_seconds, "actors": actor_states,
 		"health": health, "lives": saved_lives, "diamonds": diamonds, "moved": _moved_owners,
+		"attack_serial": player.attack_serial, "player_runtime": player.runtime_snapshot(),
+		"damage_remaining": _damage_remaining,
 		"death_pending": pending_death,
 		"player_position": _array(player.global_position), "player_facing": player.visual_root.global_rotation.y,
 		"checkpoint_state": _checkpoint_state,
@@ -816,6 +854,9 @@ func _restore_checkpoint() -> void:
 		if at.is_finite() and scene_bounds.grow(40.0).has_point(at):
 			player.global_position = at
 			player.visual_root.global_rotation.y = float(restored_run.get("player_facing", 0.0))
+			if not bool(restored_run.get("death_pending", false)) and not bool(restored_run.get("completed", false)) and lives > 0:
+				if player.restore_runtime_state(restored_run.get("player_runtime", {})):
+					_damage_remaining = float(restored_run.get("damage_remaining", 0.0))
 			camera_rig.snap_to_target()
 	if restored_run.has("diamonds"):
 		diamonds = maxi(int(restored_run.diamonds), 0)

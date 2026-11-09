@@ -22,7 +22,7 @@ from PIL import Image
 from hugo_assets.binary import FormatError
 from hugo_assets.catalog import Catalog, Record, parse_scene
 from hugo_assets.gltf import export_glb, preview_colors, verify_glb
-from hugo_assets.importer import import_lock, publish_directory, read_source
+from hugo_assets.importer import generated_output_files, import_lock, publish_directory, read_source
 from hugo_assets.mdic import MAX_SOURCE_BYTES, extract, parse_mdic
 from hugo_assets.mesh import Selection, audit_meshes, parse_mesh
 
@@ -185,6 +185,24 @@ class MeshTests(unittest.TestCase):
 
 
 class PublicationAndCliTests(unittest.TestCase):
+    def test_unfinished_working_files_cannot_enter_the_published_asset_inventory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            output.mkdir()
+            (output / "campaign.json").write_text("{}")
+            (output / "levels").mkdir()
+            (output / "levels/chapter.glb").write_bytes(b"validated model")
+            sibling = output.parent / ".level-stage-interrupted"
+            sibling.mkdir()
+            (sibling / "unfinished.glb").write_bytes(b"unfinished work")
+            self.assertEqual({p.relative_to(output).as_posix() for p in generated_output_files(output)},
+                             {"campaign.json", "levels/chapter.glb"})
+            leaked = output / ".level-stage-interrupted"
+            leaked.mkdir()
+            (leaked / "unfinished.glb").write_bytes(b"unfinished work")
+            with self.assertRaisesRegex(FormatError, "unfinished working files"):
+                generated_output_files(output)
+
     def test_failed_promotion_restores_previous_asset_set(self):
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary)

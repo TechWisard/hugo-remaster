@@ -77,6 +77,7 @@ var _coyote_remaining: float = 0.0
 var _jump_buffer_remaining: float = 0.0
 var _jump_in_progress: bool = false
 var _fresh_respawn: bool = false
+var _resume_grounded: bool = false
 var _suppress_jump_until_release: bool = false
 var _suppress_attack_until_release: bool = false
 var _attack_remaining: float = 0.0
@@ -187,8 +188,16 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# Floor flags describe the previous move_and_slide() call. Ignore a stale
-	# floor flag after teleporting, or after a buffered jump set upward velocity.
-	var grounded: bool = is_on_floor() and not _fresh_respawn and velocity.y <= 0.0
+	# flag after teleporting or launching a jump, not an upward slope/platform
+	# velocity: both still support grounded movement, crouching and new jumps.
+	# A resumed grounded body has no floor flags yet. Recheck the restored world
+	# before choosing its first movement mode, without trusting a saved contact RID.
+	var resumed_floor: bool = false
+	if _resume_grounded:
+		apply_floor_snap()
+		resumed_floor = is_on_floor()
+		_resume_grounded = false
+	var grounded: bool = is_on_floor() and (not _fresh_respawn or resumed_floor) and not _jump_in_progress
 	_jump_buffer_remaining = maxf(0.0, _jump_buffer_remaining - delta)
 	if grounded:
 		_coyote_remaining = coyote_time
@@ -272,7 +281,7 @@ func _physics_process(delta: float) -> void:
 
 	# Consume a buffered press on the very step that reaches the floor. The
 	# upward displacement starts next physics tick, without another input press.
-	if is_on_floor() and velocity.y <= 0.0:
+	if is_on_floor():
 		_jump_in_progress = false
 		if controls_enabled and _jump_buffer_remaining > 0.0:
 			_start_jump()
@@ -304,6 +313,58 @@ func set_checkpoint(world_position: Vector3) -> void:
 		_checkpoint_facing = visual_root.global_rotation.y
 
 
+func runtime_snapshot() -> Dictionary:
+	## Modern Continue keeps a live action; native checkpoint reset stays cold.
+	var result: Dictionary = {"schema_version": 1,
+		"velocity": [velocity.x, velocity.y, velocity.z],
+		"grounded": is_on_floor() and not _jump_in_progress,
+		"jumping": _jump_in_progress, "jump_origin_y": _native_jump_origin_y,
+		"jump_action": _jump_visual_action, "tick_fraction": _native_tick_fraction,
+		"crouching": is_crouching, "landing_remaining": _native_landing_remaining,
+		"attack_remaining": _attack_remaining, "attack_recovery_remaining": _attack_recovery_remaining,
+		"hurt_remaining": _hurt_remaining, "invulnerability_remaining": _invulnerability_remaining}
+	if _visual != null and _visual.using_original_animation:
+		result["visual_action"] = _visual.original_animation.current_action
+		result["visual_phase"] = _visual.original_animation.native_phase
+	return result
+
+
+func restore_runtime_state(saved: Dictionary) -> bool:
+	## CampaignState validates the optional payload; old saves keep spawn defaults.
+	if int(saved.get("schema_version", 0)) != 1 or not saved.get("velocity") is Array or saved.velocity.size() != 3:
+		return false
+	var resumed_velocity: Vector3 = _configuration_vector(saved.velocity)
+	if not resumed_velocity.is_finite():
+		return false
+	velocity = resumed_velocity
+	_jump_in_progress = bool(saved.get("jumping", false))
+	_resume_grounded = bool(saved.get("grounded", false)) and not _jump_in_progress
+	_native_jump_origin_y = float(saved.get("jump_origin_y", global_position.y))
+	_jump_visual_action = str(saved.get("jump_action", "jump"))
+	_native_tick_fraction = float(saved.get("tick_fraction", 0.0))
+	set_crouching(bool(saved.get("crouching", false)))
+	_native_landing_remaining = float(saved.get("landing_remaining", 0.0))
+	_attack_remaining = float(saved.get("attack_remaining", 0.0))
+	_attack_recovery_remaining = float(saved.get("attack_recovery_remaining", 0.0))
+	_hurt_remaining = float(saved.get("hurt_remaining", 0.0))
+	_invulnerability_remaining = float(saved.get("invulnerability_remaining", 0.0))
+	# UI activation must not become a new jump or attack, and physics contacts
+	# belong to the recreated world rather than the saved CharacterBody RID.
+	_jump_buffer_remaining = 0.0
+	_coyote_remaining = 0.0
+	_fresh_respawn = true
+	_suppress_jump_until_release = true
+	_suppress_attack_until_release = true
+	if _visual != null and _visual.using_original_animation:
+		var animation: HugoOriginalAnimation = _visual.original_animation
+		var action: String = str(saved.get("visual_action", ""))
+		if animation.has_action(action):
+			animation.set_action(action, true)
+			animation.seek_phase(float(saved.get("visual_phase", 0.0)))
+	reset_physics_interpolation()
+	return true
+
+
 func respawn() -> void:
 	if not _checkpoint_is_set:
 		set_checkpoint(global_position)
@@ -312,6 +373,7 @@ func respawn() -> void:
 	_coyote_remaining = 0.0
 	_jump_buffer_remaining = 0.0
 	_jump_in_progress = false
+	_resume_grounded = false
 	_jump_visual_action = "jump"
 	_fresh_respawn = true
 	_suppress_jump_until_release = true
@@ -572,7 +634,7 @@ func _native_move(move_direction: Vector3, grounded: bool, delta: float) -> void
 		var normal: Vector3 = get_slide_collision(index).get_normal()
 		if velocity.dot(normal) < 0.0:
 			velocity = velocity.slide(normal)
-	if is_on_floor() and velocity.y <= 0.0:
+	if is_on_floor():
 		velocity.y = 0.0
 		if not grounded:
 			_native_landing_remaining = 0.4

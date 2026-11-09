@@ -25,6 +25,7 @@ NATIVE_TIMER_HZ = 300
 EXE_SHA256 = "bbd9c5a756ab63c1585284c63e5315b6ca1628b953d8f474f87d8f3a750b5cd3"
 TAU_F32 = float(np.float32(2.0 * math.pi))
 AXES = np.array(((1., 0., 0.), (0., 0., 1.), (0., -1., 0.)))
+HUGO_SHADOW_HEIGHT_SCALE_SOURCE = float(np.float32(0.0045))
 
 # These are action IDs passed by RTTI-identified CHugoState* implementations to
 # CHugoMainActor::SetAction at 0x403390, not names inferred from frame counts.
@@ -286,6 +287,82 @@ def _binding_manifest() -> dict:
                        evidence=ACTION_EVIDENCE[i]) for i, name in enumerate(ACTION_NAMES)}
 
 
+def export_hugo_shadow(catalog: Catalog, output: Path, owner: Record) -> dict:
+    """Export the independently rendered, constant-phase ground-shadow graph.
+
+    CHugoMainActor keeps record+0x0C at runtime+0x0C (0x401BEA..0x401BFD).
+    Unlike the primary graph it never receives the action ticker: graph+0x14
+    and graph+0x18 remain source state 0 and phase 0. The render path projects
+    the actor pose onto cached floor Z and scales its entire basis by height.
+    Local static node transforms are baked once; actor pose belongs to runtime.
+    """
+    require(owner.kind == 10000, f"{owner.label}: shadow requires a Hugo owner")
+    index = SceneIndex(catalog)
+    reader = Reader(owner.data, owner.label)
+    graph = parse_graph(owner, reader.u32(12))
+    require(len(graph.states) == 1 and graph.node_count == 1,
+            f"{owner.label}: unsupported Hugo shadow graph; expected one state and node")
+    node = graph.states[0].nodes[0]
+    transform_record = index.resolve(owner.group, node.transform_ref, (3000,))
+    transform = (SourceTransform.identity() if transform_record is None
+                 else parse_transform(transform_record))
+    target = index.resolve(owner.group, node.renderable_ref, (2001,))
+    require(target is not None, f"{owner.label}: shadow has no mesh")
+    mesh = parse_mesh(target)
+    require(mesh.sample_count == 1 and all(len(part.materials) <= 1
+            and len(part.colors) == len(part.uv_bytes) == 1 for part in mesh.parts),
+            f"{owner.label}: animated shadow samples are outside the recovered profile")
+    selected = Selection(mesh, "hugo_shadow", transform.translation, transform.matrix,
+                         () if transform_record is None else (transform_record.index,))
+    data = export_glb(catalog, [selected])
+    verification = verify_glb(data)
+    relative = "animations/hugo_shadow.glb"
+    destination = output / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+    return dict(
+        path=relative, bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
+        role="ground_shadow", source_owner=index.evidence(owner),
+        source_owner_sha256=hashlib.sha256(owner.data).hexdigest(),
+        source_pointer_field=12, source_graph_offset=graph.offset,
+        source_mesh=index.evidence(target), source_mesh_sha256=mesh.raw_sha256,
+        source_transform=None if transform_record is None else index.evidence(transform_record),
+        source_state_flags=graph.states[0].flags,
+        source_state_duration_seconds=graph.states[0].duration,
+        action_index=0, native_phase=0.0, phase_policy="constant_zero",
+        authored_duration_used_for_playback=False, local_transform_baked=True,
+        source_scale=SOURCE_UNIT_SCALE, axes="(x,z,-y)",
+        bounds=verification["bounds"], vertices=verification["vertices"],
+        triangles=verification["triangles"],
+        render_policy=dict(
+            native_event="0x22020005", translation="actor_render_xy_and_cached_floor_z",
+            basis="actor_render_basis_times_height_scale",
+            height_scale_equation="1 / (1 + coefficient * (actor_physics_z - floor_z))",
+            height_scale_coefficient_source=HUGO_SHADOW_HEIGHT_SCALE_SOURCE,
+            height_scale_coefficient_world=HUGO_SHADOW_HEIGHT_SCALE_SOURCE / SOURCE_UNIT_SCALE,
+            native_height_clamp=None, native_scale_clamp=None, native_surface_offset=0.0,
+            source_actor_z_field=0x4C, source_floor_z_field=0x24C,
+            floor_source="actor_collision_cache", raycast_in_render_path=False,
+            floor_solver_fully_recovered=False,
+            visibility=dict(
+                shared_with_primary_visual=True, hide_during_surface_death_replacement=True,
+                blink_timer_field=0x370, blink_delta_ticks_field=0x368,
+                blink_timer_update="max(0, remaining_ticks - delta_ticks)", blink_mask=0x20,
+                blink_hidden_condition="(remaining_ticks & 0x20) != 0 and actor_0x4C4 == 0 and state != 6",
+                native_override_field=0x4C4, native_override_meaning="pending_death_after_knockback",
+                native_state_field=0x354, native_death_state=6,
+                surface_death_graph_field=0x4C8)),
+        material_policy="preserve_native_mesh_blend_runtime_adapter",
+        executable_evidence=dict(
+            sha256=EXE_SHA256, executed=False,
+            relocation="0x401BEA..0x401BFD", graph_initialization="0x415AE0..0x415B56",
+            constant_phase="source graph+0x18=0; only primary receives phase at 0x402EB0..0x402EBC",
+            pose_and_scale="0x402EF8..0x402F63; float32 coefficient at 0x43E444",
+            visibility_and_draw="0x402E06..0x402E33 and 0x402F66..0x402F93",
+            pending_death="0x40276B..0x402833 and 0x403A49..0x403A88",
+            surface_death_replacement="0x402E22..0x402EA2"))
+
+
 def export_animations(catalog: Catalog, output: Path) -> dict:
     """Write local-source GLB morph targets and their native action manifest.
 
@@ -429,6 +506,8 @@ def export_animations(catalog: Catalog, output: Path) -> dict:
                                               record=segment.index, graph_offset=graph_base,
                                               surface_types=[surface_index],
                                               duration_seconds=state.duration)
+    shadow = export_hugo_shadow(catalog, output, owner)
+    files[shadow["path"]] = dict(bytes=shadow["bytes"], sha256=shadow["sha256"])
     all_points = np.concatenate(bind_points)
     lower, upper = all_points.min(axis=0), all_points.max(axis=0)
     manifest = dict(
@@ -448,12 +527,13 @@ def export_animations(catalog: Catalog, output: Path) -> dict:
                                  quaternion_matrix="0x40BAD0"),
         tracks={name: track.manifest() for name, track in tracks.items()},
         clips=clips, bindings=action_bindings, files=files,
-        hugo_action_count=len(graph.states), surface_deaths=surface_deaths,
+        hugo_action_count=len(graph.states), surface_deaths=surface_deaths, hugo_shadow=shadow,
         fidelity_notes=[
             "Geometry, action IDs, transform keys and interpolation are recovered from local original data and static executable analysis.",
             "300 Hz is the original timer unit, not an animation frame rate. Moving action phase is driven by traveled distance.",
             "Godot still resolves physical contacts. Recovered player movement and gameplay rules are described by separate manifests; the complete original solver/state controller is not claimed.",
-            "Only first texture/color samples are exported. Non-mesh effects are represented separately by the level effect system; original dynamic shading is not restored here.",
+            "GLBs contain initial texture/color/UV samples; additional samples and native material timelines are exported separately in material_animation_manifest.json. Non-mesh effects use the level effect system; original dynamic shading is not restored here.",
+            "The auxiliary Hugo graph is exported as a separate constant-phase ground shadow with recovered height scaling and shared blink conditions. Native pending-death semantics are documented; complete lethal-knockback state handling is not claimed.",
             "Actions are selected directly without the original cross-state smoothing controller; crouch transition, alternate idle, jump variant, landing and death remain explicitly addressable.",
         ])
     (output / "animation_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

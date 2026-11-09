@@ -1,5 +1,6 @@
 class_name HugoNativeMaterials
 extends RefCounted
+const TexturePackScript = preload("res://scripts/hd_texture_pack.gd")
 ## Ordinary mesh blend selectors are different from CPSXSprite's mode enum.
 ## The exporter keeps the selector in the material name because glTF material
 ## extras are not reliably exposed by the Godot importer.
@@ -38,6 +39,7 @@ static func prepare_material(source: BaseMaterial3D, has_vertex_colors: bool) ->
 		var material: BaseMaterial3D = source.duplicate() as BaseMaterial3D
 		if has_vertex_colors:
 			material.vertex_color_use_as_albedo = true
+		TexturePackScript.bind_material(material, source.albedo_texture)
 		return material
 	var material := ShaderMaterial.new()
 	material.resource_name = source.resource_name
@@ -50,6 +52,7 @@ static func prepare_material(source: BaseMaterial3D, has_vertex_colors: bool) ->
 	material.set_shader_parameter("uv_offset", Vector2(source.uv1_offset.x, source.uv1_offset.y))
 	if source.albedo_texture != null:
 		material.set_shader_parameter("albedo_texture", source.albedo_texture)
+		TexturePackScript.bind_material(material, source.albedo_texture)
 	return material
 
 
@@ -191,6 +194,7 @@ static func apply_phase(instance: MeshInstance3D, phase: float) -> void:
 						(material as ShaderMaterial).set_shader_parameter("has_texture", true)
 					elif material is BaseMaterial3D:
 						(material as BaseMaterial3D).albedo_texture = texture
+					TexturePackScript.bind_material(material, texture)
 					binding["texture_index"] = texture_index
 		if not bool(binding.mutable):
 			continue

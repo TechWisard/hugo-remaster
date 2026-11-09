@@ -5,6 +5,8 @@ const LevelScript = preload("res://scripts/original_level.gd")
 const MenuScript = preload("res://scripts/campaign_menu.gd")
 const StateScript = preload("res://scripts/campaign_state.gd")
 const MovieScript = preload("res://scripts/cinematic.gd")
+const GraphicsScript = preload("res://scripts/native_graphics_settings.gd")
+const GraphicsProbeScript = preload("res://scripts/native_graphics_probe.gd")
 const TITLES: Dictionary = {6: "Пляж", 17: "Старая тропа Кику", 27: "Алмазные шахты",
 	36: "Транспортная линия", 46: "Нефтепровод", 55: "Алмазная фабрика", 59: "Авария", 69: "Побег"}
 const MOVIES_AFTER: Dictionary = {17: ["plan_on_track"], 36: ["more_power_1"],
@@ -23,9 +25,25 @@ var _music: AudioStreamPlayer
 var _loading: CanvasLayer
 var _transitioning: bool = false
 var _capture_requested: String = ""
+var _last_display_options: Dictionary = {}
+var _display_preview_options: Dictionary = {}
+var _display_dialog: ConfirmationDialog
+var _display_confirmation_timer: Timer
+var _window_resize_timer: Timer
+var _ignore_window_resize_until: int = 0
+var _keep_startup_window: bool = false
+var _display_preview_window: Dictionary = {}
 
 
 func _ready() -> void:
+	# The launcher must inspect this renderer before any save, media or level loads.
+	var probe_options: Dictionary = GraphicsProbeScript.parse_arguments(OS.get_cmdline_user_args())
+	if probe_options.requested:
+		set_process_unhandled_input(false)
+		var probe := GraphicsProbeScript.new()
+		probe.options = probe_options
+		add_child(probe)
+		return
 	RemasterInput.configure()
 	_configure_audio()
 	_load_catalog()
@@ -34,7 +52,8 @@ func _ready() -> void:
 	for entry: Dictionary in levels:
 		ids.append(str(entry.id))
 	state.read_save(ids)
-	_apply_settings(false)
+	_apply_startup_settings()
+	_setup_window_tracking()
 	var selected: String = ""
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--level="):
@@ -91,6 +110,7 @@ func _show_menu() -> void:
 	menu.new_game_requested.connect(_new_game)
 	menu.demo_requested.connect(_start_demo)
 	menu.settings_changed.connect(_apply_settings)
+	menu.display_preview_requested.connect(_preview_display)
 	add_child(menu)
 	_play_music_track(2)
 
@@ -286,18 +306,153 @@ func _configure_audio() -> void:
 	add_child(_music)
 
 
-func _apply_settings(persist: bool = true) -> void:
+func _apply_startup_settings() -> void:
+	_keep_startup_window = GraphicsScript.keep_startup_window_requested()
+	_apply_settings(false, not _keep_startup_window)
+
+
+func _apply_settings(persist: bool = true, manage_window: bool = true) -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(maxf(float(state.settings.music_volume), 0.0001)))
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Effects"), linear_to_db(maxf(float(state.settings.effects_volume), 0.0001)))
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if state.settings.fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
+	var options: Dictionary = GraphicsScript.sanitize(state.settings.get("graphics", {}))
+	var display: Dictionary = GraphicsScript.display_options(options)
+	var display_changed: bool = display != _last_display_options
+	if display_changed:
+		_ignore_window_resize_until = Time.get_ticks_msec() + 500
+	state.settings["graphics"] = GraphicsScript.apply(get_viewport(), options, manage_window and display_changed)
+	state.settings.fullscreen = options.display_mode != "windowed"
+	_last_display_options = display
 	if persist:
 		state.write_save()
 
 
+func _setup_window_tracking() -> void:
+	if _window_resize_timer != null:
+		return
+	_window_resize_timer = Timer.new()
+	_window_resize_timer.one_shot = true
+	_window_resize_timer.wait_time = 0.5
+	_window_resize_timer.ignore_time_scale = true
+	_window_resize_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_window_resize_timer.timeout.connect(_remember_window_size)
+	add_child(_window_resize_timer)
+	get_tree().root.size_changed.connect(_on_window_size_changed)
+
+
+func _on_window_size_changed() -> void:
+	if _window_resize_timer != null and Time.get_ticks_msec() >= _ignore_window_resize_until:
+		_window_resize_timer.start()
+
+
+func _remember_window_size() -> void:
+	if state == null or not _display_preview_options.is_empty() or DisplayServer.get_name() == "headless" \
+			or Time.get_ticks_msec() < _ignore_window_resize_until:
+		return
+	# A temporary launcher/capture window must not silently replace saved choices.
+	# Explicitly confirming a display change below ends this temporary override.
+	if _keep_startup_window:
+		return
+	var window: Window = get_tree().root
+	if state.settings.graphics.display_mode != "windowed" or window.mode != Window.MODE_WINDOWED:
+		return
+	if window.size.x < GraphicsScript.MIN_WINDOW_SIZE.x or window.size.y < GraphicsScript.MIN_WINDOW_SIZE.y:
+		return
+	state.settings.graphics.window_width = window.size.x
+	state.settings.graphics.window_height = window.size.y
+	_last_display_options = GraphicsScript.display_options(state.settings.graphics)
+	state.write_save()
+	if is_instance_valid(menu):
+		menu.refresh_display_controls()
+
+
+func _preview_display(requested: Dictionary) -> void:
+	if not _display_preview_options.is_empty():
+		_finish_display_preview(false)
+	if _keep_startup_window:
+		var window: Window = get_tree().root
+		_display_preview_window = {"mode": window.mode, "size": window.size,
+			"position": window.position, "borderless": window.borderless}
+	var options: Dictionary = GraphicsScript.sanitize(state.settings.graphics)
+	var display: Dictionary = GraphicsScript.display_options(requested)
+	options.merge(display, true)
+	_display_preview_options = display
+	_ignore_window_resize_until = Time.get_ticks_msec() + 500
+	GraphicsScript.apply(get_viewport(), options)
+	# Committed preferences remain unchanged throughout preview. A gameplay
+	# autosave or closing the process therefore cannot persist an unseen mode.
+	_display_dialog = ConfirmationDialog.new()
+	_display_dialog.name = "DisplayConfirmation"
+	_display_dialog.process_mode = Node.PROCESS_MODE_ALWAYS
+	_display_dialog.title = "Настройки экрана"
+	_display_dialog.ok_button_text = "Оставить"
+	_display_dialog.cancel_button_text = "Вернуть"
+	_display_dialog.dialog_text = "Оставить новый режим?\nБез ответа прежние настройки вернутся через 15 секунд."
+	_display_dialog.confirmed.connect(_finish_display_preview.bind(true))
+	_display_dialog.canceled.connect(_finish_display_preview.bind(false))
+	add_child(_display_dialog)
+	_display_dialog.popup_centered(Vector2i(510, 180))
+	_display_confirmation_timer = Timer.new()
+	_display_confirmation_timer.name = "DisplayConfirmationTimer"
+	_display_confirmation_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_display_confirmation_timer.one_shot = true
+	_display_confirmation_timer.wait_time = 15.0
+	_display_confirmation_timer.ignore_time_scale = true
+	_display_confirmation_timer.timeout.connect(_finish_display_preview.bind(false))
+	add_child(_display_confirmation_timer)
+	_display_confirmation_timer.start()
+	_update_display_confirmation.call_deferred()
+
+
+func _update_display_confirmation() -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(_display_dialog) or _display_preview_options.is_empty():
+		return
+	var size: Vector2i = get_tree().root.size
+	_display_dialog.dialog_text = "Оставить новый режим? Фактический размер: %d × %d.\nБез ответа прежние настройки вернутся через 15 секунд." % [size.x, size.y]
+
+
+func _finish_display_preview(accepted: bool) -> void:
+	if _display_preview_options.is_empty():
+		return
+	if accepted:
+		state.settings.graphics.merge(_display_preview_options, true)
+		state.settings.fullscreen = state.settings.graphics.display_mode != "windowed"
+		state.write_save()
+		_keep_startup_window = false
+	_display_preview_options = {}
+	_ignore_window_resize_until = Time.get_ticks_msec() + 500
+	var restore_startup: bool = _keep_startup_window and not _display_preview_window.is_empty()
+	GraphicsScript.apply(get_viewport(), state.settings.graphics, not restore_startup)
+	if restore_startup and DisplayServer.get_name() != "headless":
+		var window: Window = get_tree().root
+		var previous_mode: int = int(_display_preview_window.mode)
+		window.mode = previous_mode
+		if previous_mode == Window.MODE_WINDOWED:
+			window.borderless = bool(_display_preview_window.borderless)
+			window.size = _display_preview_window.size
+			window.position = _display_preview_window.position
+	_display_preview_window = {}
+	_last_display_options = GraphicsScript.display_options(state.settings.graphics)
+	if is_instance_valid(_display_confirmation_timer):
+		_display_confirmation_timer.stop()
+		_display_confirmation_timer.queue_free()
+		_display_confirmation_timer = null
+	if is_instance_valid(_display_dialog):
+		_display_dialog.hide()
+		_display_dialog.queue_free()
+		_display_dialog = null
+	if is_instance_valid(menu):
+		menu.refresh_display_controls()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
-		state.settings.fullscreen = not state.settings.fullscreen
-		_apply_settings()
+		var display: Dictionary = GraphicsScript.display_options(state.settings.graphics)
+		var is_fullscreen: bool = display.display_mode != "windowed"
+		if DisplayServer.get_name() != "headless":
+			is_fullscreen = get_tree().root.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]
+		display.display_mode = "windowed" if is_fullscreen else "fullscreen"
+		_preview_display(display)
 		get_viewport().set_input_as_handled()
 
 

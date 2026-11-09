@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
-  "checked_at_utc": "2026-11-08T18:30:44.721830+00:00",
-  "milestone": "0.2.0-dev",
+  "schema_version": 3,
+  "milestone": "0.3.0-dev",
+  "checked_at_utc": "2026-11-09T12:37:27.646655+00:00",
   "godot_version": "4.7.2.stable.official.ed1daf0bf",
-  "runtime_environment": "Linux x86_64, Godot Physics, OpenGL Compatibility / Mesa llvmpipe for rendered captures",
+  "runtime_environment": "Linux x86_64; Godot Physics; real OpenGL through Mesa llvmpipe, a software renderer",
   "original_source": {
     "filename": "HUGO4.CD",
     "size_bytes": 42946560,
@@ -14,8 +14,10 @@
   },
   "import": {
     "exit_code": 0,
-    "generated_files": 581,
+    "importer_version": "0.3.0",
+    "generated_files": 582,
     "asset_manifest_is_additional": true,
+    "internal_staging_files_published": false,
     "validation": {
       "container": {
         "input_size": 42946560,
@@ -127,32 +129,11 @@
           15,
           16
         ],
-        "geometry_sha256": "44c7afc52ff45afda378cc034e30a98309e0e6959aa8c86c47f6dc332637693c",
         "owners": 418,
         "actions": 400,
         "mesh_instances": 882,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 7388284,
-          "meshes": 352,
-          "submeshes": 745,
-          "vertices": 38672,
-          "triangles": 32359,
-          "morph_target_accessors": 4136,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 882,
-          "owner_nodes": 418,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 132,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 5.798339827833843e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 74
+        "geometry_sha256": "44c7afc52ff45afda378cc034e30a98309e0e6959aa8c86c47f6dc332637693c",
+        "unresolved_references": 0
       },
       {
         "id": "g017",
@@ -168,32 +149,11 @@
           24,
           25
         ],
-        "geometry_sha256": "2ef28e4d5937569d125dd9b78853cf37d3c6f87b62013fe87a74b896bb6999fe",
         "owners": 294,
         "actions": 378,
         "mesh_instances": 704,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 6087848,
-          "meshes": 333,
-          "submeshes": 820,
-          "vertices": 42997,
-          "triangles": 35893,
-          "morph_target_accessors": 2477,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 704,
-          "owner_nodes": 294,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 131,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 3.6621094068323146e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 76
+        "geometry_sha256": "2ef28e4d5937569d125dd9b78853cf37d3c6f87b62013fe87a74b896bb6999fe",
+        "unresolved_references": 0
       },
       {
         "id": "g027",
@@ -209,32 +169,11 @@
           34,
           35
         ],
-        "geometry_sha256": "49f97bb1f87bbd0b0a0c1171df7ce9ada96aa5510472f2b46cffcae2cfe3eb68",
         "owners": 377,
         "actions": 452,
         "mesh_instances": 777,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 5885240,
-          "meshes": 387,
-          "submeshes": 878,
-          "vertices": 38630,
-          "triangles": 33420,
-          "morph_target_accessors": 2074,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 777,
-          "owner_nodes": 377,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 190,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 9.155273438921085e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 85
+        "geometry_sha256": "49f97bb1f87bbd0b0a0c1171df7ce9ada96aa5510472f2b46cffcae2cfe3eb68",
+        "unresolved_references": 0
       },
       {
         "id": "g036",
@@ -250,32 +189,11 @@
           43,
           44
         ],
-        "geometry_sha256": "06677fff75c3c5308a55e0650b00908ddf4581150923eb442ba6d7f976f0614a",
         "owners": 342,
         "actions": 526,
         "mesh_instances": 1065,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 5797508,
-          "meshes": 337,
-          "submeshes": 759,
-          "vertices": 38181,
-          "triangles": 32449,
-          "morph_target_accessors": 1943,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 1065,
-          "owner_nodes": 342,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 119,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 5.493164067615908e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 74
+        "geometry_sha256": "06677fff75c3c5308a55e0650b00908ddf4581150923eb442ba6d7f976f0614a",
+        "unresolved_references": 0
       },
       {
         "id": "g046",
@@ -290,32 +208,11 @@
           52,
           53
         ],
-        "geometry_sha256": "d089da2ca9ccae0ecb830ca2e795ba0db86f11da13248eeb7131569b6c86a503",
         "owners": 387,
         "actions": 515,
         "mesh_instances": 1233,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 5687156,
-          "meshes": 397,
-          "submeshes": 862,
-          "vertices": 36992,
-          "triangles": 32921,
-          "morph_target_accessors": 1638,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 1233,
-          "owner_nodes": 387,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 179,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 1.0995611390285376e-05,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 93
+        "geometry_sha256": "d089da2ca9ccae0ecb830ca2e795ba0db86f11da13248eeb7131569b6c86a503",
+        "unresolved_references": 0
       },
       {
         "id": "g055",
@@ -326,32 +223,11 @@
           57,
           58
         ],
-        "geometry_sha256": "89f6e2ee782d46bad654f23183beb3e3a78a66f3cfdff74a5db333fb6e03a184",
         "owners": 173,
         "actions": 210,
         "mesh_instances": 400,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 3126148,
-          "meshes": 146,
-          "submeshes": 433,
-          "vertices": 22036,
-          "triangles": 16901,
-          "morph_target_accessors": 904,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 400,
-          "owner_nodes": 173,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 74,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 9.765625009094947e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 51
+        "geometry_sha256": "89f6e2ee782d46bad654f23183beb3e3a78a66f3cfdff74a5db333fb6e03a184",
+        "unresolved_references": 0
       },
       {
         "id": "g059",
@@ -367,32 +243,11 @@
           66,
           67
         ],
-        "geometry_sha256": "5e849527f13cefed2f51f163d3b65324fdd125332b7f978331887bc90c9feafd",
         "owners": 309,
         "actions": 407,
         "mesh_instances": 836,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 5407992,
-          "meshes": 402,
-          "submeshes": 961,
-          "vertices": 37510,
-          "triangles": 30534,
-          "morph_target_accessors": 1465,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 836,
-          "owner_nodes": 309,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 154,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 3.6621094068323146e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 86
+        "geometry_sha256": "5e849527f13cefed2f51f163d3b65324fdd125332b7f978331887bc90c9feafd",
+        "unresolved_references": 0
       },
       {
         "id": "g069",
@@ -408,32 +263,11 @@
           76,
           77
         ],
-        "geometry_sha256": "f1fb910947201cb8aebdb9a82ce4f4d93863b95328d56fee521d285dc0ec5c38",
         "owners": 214,
         "actions": 337,
         "mesh_instances": 647,
-        "unresolved_references": 0,
-        "glb": {
-          "bytes": 4369920,
-          "meshes": 232,
-          "submeshes": 589,
-          "vertices": 29735,
-          "triangles": 23076,
-          "morph_target_accessors": 1763,
-          "checked_buffer_lengths": true,
-          "checked_indices": true,
-          "checked_embedded_images": true,
-          "instance_count": 647,
-          "owner_nodes": 214,
-          "checked_unique_node_names": true,
-          "checked_action_node_paths": true,
-          "effect_anchor_nodes": 130,
-          "checked_effect_anchor_matrices": true,
-          "checked_instance_matrices": true,
-          "maximum_matrix_roundtrip_error": 5.187988278976263e-06,
-          "matrix_roundtrip_tolerance": 0.0001
-        },
-        "diamonds_native_hud": 99
+        "geometry_sha256": "f1fb910947201cb8aebdb9a82ce4f4d93863b95328d56fee521d285dc0ec5c38",
+        "unresolved_references": 0
       }
     ],
     "scene_graph_validation": {
@@ -471,191 +305,78 @@
     "owners": 2514,
     "exported_actions": 3225,
     "mesh_instances": 6544,
-    "runtime_action_bindings": {
-      "actions": 3113,
-      "motions": 2186,
-      "all_resolved_exactly": true,
-      "every_action_switched_and_restored": true,
-      "player_action_difference": "112 exported action groups are 14 Hugo actions repeated in 8 chapter owners; the custom Hugo controller uses the separately verified 14-action/27-surface-death export."
-    },
-    "startup_checks": [
+    "runtime_actor_action_bindings": 3113,
+    "child_segments": 60
+  },
+  "native_shadow": {
+    "source_path": "animations/hugo_shadow.glb",
+    "source_sha256": "6ce35e2982138ef54988fa4d57d28b2ed29664be82045e3cc2bcf96ec2fd00a8",
+    "vertices": 4,
+    "triangles": 2,
+    "source_native_phase": 0.0,
+    "separate_from_41_animation_clips": true,
+    "gpu_checks": 75,
+    "gpu_failures": [],
+    "headless_checks": 68,
+    "evidence": [
       {
-        "action_binding_checks": {
-          "actions": 386,
-          "motions": 372
-        },
-        "actors": 77,
-        "collision_bodies": 11,
-        "diamonds": 74,
-        "id": "g006",
-        "on_floor": true,
-        "pickups": 82,
-        "settled": [
-          120.121055603027,
-          -30.3103294372559,
-          -33.0061149597168
-        ],
-        "spawn": [
-          120.121055603027,
-          -30.3447914123535,
-          -33.0061149597168
-        ]
+        "actual_jump_feet_y": 3.01040124893188,
+        "brightened_pixels": 0,
+        "darkened_pixels": 2012,
+        "height": 600,
+        "label": "fixture",
+        "maximum_darkening": 0.176470587650935,
+        "qa_fixture_not_gameplay": true,
+        "width": 800,
+        "with_shadow_image": "native_shadow_qa_fixture_with_shadow.png",
+        "without_shadow_image": "native_shadow_qa_fixture_without_shadow.png"
       },
       {
-        "action_binding_checks": {
-          "actions": 364,
-          "motions": 239
-        },
-        "actors": 54,
-        "collision_bodies": 22,
-        "diamonds": 76,
-        "id": "g017",
-        "on_floor": true,
-        "pickups": 85,
-        "settled": [
-          -0.012112426571548,
-          -12.1036281585693,
-          11.8082981109619
-        ],
-        "spawn": [
-          -0.012112426571548,
-          -10.018346786499,
-          11.8082981109619
-        ]
+        "apex": 3.01040124893188,
+        "label": "fixture",
+        "maximum_formula_error": 3.08492120737469e-08,
+        "minimum_world_width": 0.959790523770465
       },
       {
-        "action_binding_checks": {
-          "actions": 438,
-          "motions": 326
-        },
-        "actors": 93,
-        "collision_bodies": 38,
-        "diamonds": 85,
-        "id": "g027",
-        "on_floor": true,
-        "pickups": 96,
-        "settled": [
-          -17.8869819641113,
-          -0.156142234802246,
-          -7.54158067703247
-        ],
-        "spawn": [
-          -17.8869819641113,
-          0.784807682037354,
-          -7.54158067703247
-        ]
+        "label": "fixture"
       },
       {
-        "action_binding_checks": {
-          "actions": 512,
-          "motions": 285
-        },
-        "actors": 123,
-        "collision_bodies": 25,
-        "diamonds": 74,
-        "id": "g036",
-        "on_floor": true,
-        "pickups": 81,
-        "settled": [
-          -57.191234588623,
-          -10.2419986724854,
-          175.206756591797
-        ],
-        "spawn": [
-          -57.191234588623,
-          -9.75397872924805,
-          175.206756591797
-        ]
+        "actual_jump_height": 3.00626873970032,
+        "floor_backface_collision": true,
+        "label": "backface_terrain",
+        "support_valid": true
       },
       {
-        "action_binding_checks": {
-          "actions": 501,
-          "motions": 360
-        },
-        "actors": 110,
-        "collision_bodies": 77,
-        "diamonds": 93,
-        "id": "g046",
-        "on_floor": true,
-        "pickups": 101,
-        "settled": [
-          -523.445922851562,
-          -9.64169979095459,
-          -145.828811645508
-        ],
-        "spawn": [
-          -523.445922851562,
-          -9.46518707275391,
-          -145.828811645508
-        ]
+        "actual_jump_feet_y": 3.01040124893188,
+        "brightened_pixels": 0,
+        "darkened_pixels": 1434,
+        "height": 600,
+        "label": "source",
+        "maximum_darkening": 0.0888888835906982,
+        "qa_fixture_not_gameplay": true,
+        "width": 800,
+        "with_shadow_image": "native_shadow_qa_source_with_shadow.png",
+        "without_shadow_image": "native_shadow_qa_source_without_shadow.png"
       },
       {
-        "action_binding_checks": {
-          "actions": 196,
-          "motions": 142
-        },
-        "actors": 25,
-        "collision_bodies": 50,
-        "diamonds": 51,
-        "id": "g055",
-        "on_floor": true,
-        "pickups": 53,
-        "settled": [
-          27.5732612609863,
-          -3.67972493171692,
-          -291.391479492188
-        ],
-        "spawn": [
-          27.5732612609863,
-          -3.46895623207092,
-          -291.391479492188
-        ]
+        "apex": 3.01040124893188,
+        "label": "source",
+        "maximum_formula_error": 3.08492120737469e-08,
+        "minimum_world_width": 0.959790523770465
       },
       {
-        "action_binding_checks": {
-          "actions": 393,
-          "motions": 282
-        },
-        "actors": 61,
-        "collision_bodies": 86,
-        "diamonds": 86,
-        "id": "g059",
-        "on_floor": true,
-        "pickups": 93,
-        "settled": [
-          -12.5794382095337,
-          -1.00243031978607,
-          -4.27319622039795
-        ],
-        "spawn": [
-          -12.5794382095337,
-          0.21273835003376,
-          -4.27319622039795
-        ]
+        "label": "source"
       },
       {
-        "action_binding_checks": {
-          "actions": 323,
-          "motions": 180
-        },
-        "actors": 46,
-        "collision_bodies": 23,
-        "diamonds": 99,
-        "id": "g069",
-        "on_floor": true,
-        "pickups": 106,
-        "settled": [
-          0.227317199110985,
-          -1.38233757019043,
-          -5.8773045539856
-        ],
-        "spawn": [
-          0.227317199110985,
-          0.21273835003376,
-          -5.8773045539856
-        ]
+        "following_frames": 90,
+        "label": "real_Beach_normal_input",
+        "normal_input_frames": 90,
+        "supported_frames": 90,
+        "teleports_or_requested_resets": 0,
+        "world_physics_modified": false
       }
-    ]
+    ],
+    "floor_adapter": "Godot rays with terrain backfaces; not complete native collision solver"
   },
   "material_animation_export": {
     "mesh_records": 2800,
@@ -682,396 +403,863 @@
     ]
   },
   "python_tests": {
-    "tests_passed": 105,
-    "tests_total": 105,
+    "tests_passed": 117,
+    "tests_total": 117,
     "skipped": 0,
     "framework": "unittest",
-    "local_original_end_to_end_import_included": true
+    "local_original_end_to_end_import_included": true,
+    "seconds": 32.836,
+    "includes_dlss_pack_builder_tests": 7,
+    "powershell_tests_recorded_separately": true
   },
-  "runtime_tests": [
-    {
-      "script": "game/tests/save_state_test.gd",
-      "checks_passed": 27,
-      "checks_total": 27,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 0.317
-    },
-    {
-      "script": "game/tests/smoke_test.gd",
-      "checks_passed": 64,
-      "checks_total": 64,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 1.227
-    },
-    {
-      "script": "game/tests/native_vm_test.gd",
-      "checks_passed": 44,
-      "checks_total": 44,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 0.57
-    },
-    {
-      "script": "game/tests/native_scopes_test.gd",
-      "checks_passed": 17,
-      "checks_total": 17,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 0.418
-    },
-    {
-      "script": "game/tests/campaign_smoke.gd",
-      "checks_passed": 26604,
-      "checks_total": 26604,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 13.211
-    },
-    {
-      "script": "game/tests/campaign_flow_test.gd",
-      "checks_passed": 47,
-      "checks_total": 47,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 40.19
-    },
-    {
-      "script": "game/tests/native_route_test.gd",
-      "checks_passed": 1217,
-      "checks_total": 1217,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 39.723
-    },
-    {
-      "script": "game/tests/native_life_test.gd",
-      "checks_passed": 17,
-      "checks_total": 17,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 4.784
-    },
-    {
-      "script": "game/tests/native_platform_test.gd",
-      "checks_passed": 10,
-      "checks_total": 10,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 3.535
-    },
-    {
-      "script": "game/tests/native_material_test.gd",
-      "checks_passed": 23,
-      "checks_total": 23,
-      "exit_code": 0,
-      "errors": [],
-      "seconds": 0.474
-    }
-  ],
-  "runtime_checks_total": 28070,
-  "native_route": {
-    "checks_passed": 1217,
-    "chapters": 8,
-    "child_segments": 60,
-    "actual_exit_overlaps": 8,
-    "method": "Scripted two-way segment residency traversal and real exit body overlaps; fixture movement is not manual start-to-finish playthrough."
-  },
-  "clean_checkout_without_originals": {
-    "editor_import_exit_code": 0,
-    "main_menu_exit_code": 0,
-    "playable_authored_fallback_smoke_checks": 64,
-    "errors": []
-  },
-  "supplemental_source_reference_probes": {
-    "native_animation_reference": {
-      "clips_compared": 41,
-      "mesh_poses_compared": 620,
-      "max_basis_error": 1.790508203924901e-07,
-      "max_position_error": 2.9087067021649204e-07,
-      "max_weight_error": 0.0,
-      "probe_failures": []
-    },
-    "native_camera": {
-      "checks": 248,
-      "failures": []
-    },
-    "native_player": {
-      "checks": 18,
-      "expected_ground_distance": 7.7275001084346,
-      "failures": [],
-      "ground_distance": 7.72749996185303,
-      "jump_height": 3.00999467074871,
-      "jump_range": 9.1875
-    },
-    "surface_deaths": {
-      "checks": 165,
-      "failures": [],
-      "profiles": 27
-    },
-    "particle_update": {
-      "checks": 1381,
-      "failures": [],
-      "cases": 276
-    },
-    "particle_reference": {
-      "source_emitters": 69,
-      "spawn_cases": 276,
-      "states_compared": 1104,
-      "max_errors": {
-        "position": 1.269039955786866e-06,
-        "velocity": 4.170532236003055e-06,
-        "lifetime": 4.263256414560601e-14,
-        "remaining": 4.618527782440651e-14,
-        "spin": 4.163336342344337e-17,
-        "angle": 1.0658141036401503e-14,
-        "size": 9.007948199268867e-05,
-        "tint": 0.0
-      },
-      "failures": [],
-      "godot_checks": 1381
-    },
-    "particle_gpu": {
-      "background": [
-        0.180392161011696,
-        0.258823543787003,
-        0.360784322023392,
-        1.0
-      ],
-      "checks": 12,
-      "failures": [],
-      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
-      "rgb8_tolerance": 4
-    },
-    "native_audio": {
-      "checks": 7806,
-      "failures": [],
-      "reference_cases": 3898
-    },
-    "native_mesh_blend_gpu": {
-      "checks": 17,
-      "failures": []
-    },
-    "material_animation_runtime_gpu": {
-      "checks": 1063,
-      "failures": [],
-      "source_ids_checked": 436
-    }
-  },
-  "media": {
-    "status": "pass_with_observations",
-    "summary": {
-      "movies": 8,
-      "music_tracks": 8,
-      "credits_present": true,
-      "checks": 93,
-      "failures": 0,
-      "max_video_duration_difference_seconds": 0.05987999999999971,
-      "nominal_frame_rate_exact_matches": 8,
-      "dimension_exact_matches": 8,
-      "max_container_duration_difference_seconds": 0.03195399999999893,
-      "one_frame_video_endpoint_differences": 1
-    },
-    "media_manifest_sha256": "1bb34fd5318b5d780d19f58a84ad46cfdc1808451db87b88ef93ae6f1a734b43",
-    "movies": [
+  "runtime_regression": {
+    "kind": "current_imported_project_godot_regression",
+    "project_version": "0.3.0-dev",
+    "engine_version": "4.7.2.stable.official.ed1daf0bf",
+    "started_utc": "2026-11-09T12:19:27.382409+00:00",
+    "git_head_before_commit": "30e3e41a4f2811564061a79febf0f565e69119da",
+    "source_fingerprint_start": "50f9ba7bae75f72da0e57a1a18cbc8f0b6b1686f18b82a24120a5b717cc93ccb",
+    "source_fingerprint_scope": "game/project.godot, game/scripts/*.gd, and executed test scripts",
+    "hd_pack_source_textures": 6,
+    "hd_pack_sha256": "8b7a61f13bb35832a44b6f269953ae898e29a50057562e8864c49c6b1383eb89",
+    "hd_assets_fingerprint_start": "7104f712ff41b821fc55e5b1f9c72c71ca085062691ac8a1eb1c5515eeb7f18d",
+    "renderer": "headless; real OpenGL UI and shadow rendering are checked separately",
+    "manual_full_playthrough": false,
+    "tests": [
       {
-        "id": "logo",
-        "source_filename": "ITEMEDIA.BIK",
-        "output_path": "media/logo.ogv",
-        "source_sha256": "2c13e4a0749e7cc7e6e93f2e908bd885289a23340d7a519597d51767c97e7caa",
-        "output_sha256": "a3093d0e22e3391f146c932a33452f39ab0d7490ae96a9bab3a8d8892c315a26"
+        "id": "smoke",
+        "script": "res://tests/smoke_test.gd",
+        "arguments": [],
+        "checks": 64,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 1.1675,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "SMOKE RESULT: 64/64 checks passed"
       },
       {
-        "id": "intro_a",
-        "source_filename": "CUTSC01A.BIK",
-        "output_path": "media/intro_a.ogv",
-        "source_sha256": "a3941546334f2e0ca3cc0b5a74c2b946714e1831c317a754f60f84edf99f37f7",
-        "output_sha256": "a83efb256f03f07780293332c3e17a7db92636008bd0812546e5456ec007f3d2"
+        "id": "save_state",
+        "script": "res://tests/save_state_test.gd",
+        "arguments": [],
+        "checks": 35,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.3168,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "SAVE_STATE_TEST checks=35 failures=[]"
       },
       {
-        "id": "intro_b",
-        "source_filename": "CUTSC01B.BIK",
-        "output_path": "media/intro_b.ogv",
-        "source_sha256": "86cad8871fb66e59b4af66555cfdb1d1bc85501b8a2a9767c14394707875dbf6",
-        "output_sha256": "74acdb8f215fafba8718eee92f7b8b6f6ccf85e9c57622d6ca67e873c3aee028"
+        "id": "native_vm",
+        "script": "res://tests/native_vm_test.gd",
+        "arguments": [],
+        "checks": 44,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.4217,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_VM_TEST checks=44 failures=0"
       },
       {
-        "id": "plan_on_track",
-        "source_filename": "CUTSC02_.BIK",
-        "output_path": "media/plan_on_track.ogv",
-        "source_sha256": "48bab5b90014c14b1e0a9e89b8f8fdf23249f1214405fc94a444c45a3d36d9a4",
-        "output_sha256": "0386d2136502efdf591eb9a7fe1159584a05d3d12beb5d06f78fa65c5d814909"
+        "id": "native_scopes",
+        "script": "res://tests/native_scopes_test.gd",
+        "arguments": [],
+        "checks": 17,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.4792,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_SCOPES_TEST checks=17 failures=0"
       },
       {
-        "id": "more_power_1",
-        "source_filename": "CUTSC03_.BIK",
-        "output_path": "media/more_power_1.ogv",
-        "source_sha256": "313093d2fd396a02c07841f7437dbcff364154a0366d53bab4419c512f8e7175",
-        "output_sha256": "d44641abccb5711a1acbfb13f9ee4c12c14e11ba5d787333344fcbadb42be722"
+        "id": "campaign_smoke",
+        "script": "res://tests/campaign_smoke.gd",
+        "arguments": [],
+        "checks": 26604,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 14.5445,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "CAMPAIGN_SMOKE checks=26604 failures=0"
       },
       {
-        "id": "more_power_2",
-        "source_filename": "CUTSC04_.BIK",
-        "output_path": "media/more_power_2.ogv",
-        "source_sha256": "b7d01c3ba0e6dc8d9977f19695113bf16546e5b8468be7d63d10956cd2dc2298",
-        "output_sha256": "0df36fdb353b239df36dc25b73d21380ce804294eb450ceafff1ad879e21d88b"
+        "id": "campaign_flow",
+        "script": "res://tests/campaign_flow_test.gd",
+        "arguments": [],
+        "checks": 47,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 12.2866,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "CAMPAIGN_FLOW checks=47 failures=[] movies=[\"logo\",\"intro_a\",\"intro_b\",\"plan_on_track\",\"more_power_1\",\"more_power_2\",\"lost_juice\",\"outro\",\"plan_on_track\"]"
       },
       {
-        "id": "lost_juice",
-        "source_filename": "CUTSC05_.BIK",
-        "output_path": "media/lost_juice.ogv",
-        "source_sha256": "b8156fca6a30bd33bbac9083648348bf00dc03a7554a3f94374d91373d472a99",
-        "output_sha256": "67a1dd03c9aa2765ae313ca10da1ca59f188fd6e3346320a922f5f3f56f422cb"
+        "id": "native_route",
+        "script": "res://tests/native_route_test.gd",
+        "arguments": [],
+        "checks": 1217,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 18.8083,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_ROUTE_TEST checks=1217 failures=0 chapters=8 child_segments=60 exits=8 report=user://native_route_test.json"
       },
       {
-        "id": "outro",
-        "source_filename": "CUTSC06_.BIK",
-        "output_path": "media/outro.ogv",
-        "source_sha256": "9ed77b7c0d7d8b53720a0043346232c03dbd57622c98899ac8bd37c71fbbaebd",
-        "output_sha256": "eb796e5838ff62f64321cb714286de81ed22adb6b666a07e7dde0204000b5a53"
+        "id": "native_life",
+        "script": "res://tests/native_life_test.gd",
+        "arguments": [],
+        "checks": 21,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 4.6304,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_LIFE checks=21 failures=[]"
+      },
+      {
+        "id": "native_platform",
+        "script": "res://tests/native_platform_test.gd",
+        "arguments": [],
+        "checks": 10,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.4754,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_PLATFORM_TEST: PASS checks=10 travel=42.9858551025391 horizontal_drift=0.6497340798378 vertical_drift=0.00000190734863 grounded=120"
+      },
+      {
+        "id": "native_material",
+        "script": "res://tests/native_material_test.gd",
+        "arguments": [],
+        "checks": 23,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.3169,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE MATERIAL TEST: PASS 23/23"
+      },
+      {
+        "id": "native_resume",
+        "script": "res://tests/native_resume_test.gd",
+        "arguments": [],
+        "checks": 78,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.4737,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_RESUME checks=78 failures=[]"
+      },
+      {
+        "id": "graphics_normal",
+        "script": "res://tests/graphics_settings_test.gd",
+        "arguments": [],
+        "checks": 22,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.1222,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "GRAPHICS_SETTINGS checks=22 profile=false failures=[]"
+      },
+      {
+        "id": "graphics_uplift_profile",
+        "script": "res://tests/graphics_settings_test.gd",
+        "arguments": [
+          "--dlss5-profile"
+        ],
+        "checks": 17,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.1257,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "GRAPHICS_SETTINGS checks=17 profile=true failures=[]"
+      },
+      {
+        "id": "graphics_feeder_profile",
+        "script": "res://tests/graphics_settings_test.gd",
+        "arguments": [
+          "--dlss5-feeder-profile"
+        ],
+        "checks": 17,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.023,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "GRAPHICS_SETTINGS checks=17 profile=true failures=[]"
+      },
+      {
+        "id": "hd_texture_pack",
+        "script": "res://tests/hd_texture_pack_test.gd",
+        "arguments": [],
+        "checks": 53,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.8485,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "HD_TEXTURE_PACK checks=53 failures=[]"
+      },
+      {
+        "id": "native_shadow",
+        "script": "res://tests/native_shadow_test.gd",
+        "arguments": [],
+        "checks": 68,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 6.0904,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_SHADOW checks=68 failures=[] report=user://native_shadow_test.json"
+      },
+      {
+        "id": "graphics_safe",
+        "script": "res://tests/graphics_settings_test.gd",
+        "arguments": [
+          "--graphics-safe-profile"
+        ],
+        "checks": 17,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.0214,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "GRAPHICS_SETTINGS checks=17 profile=true failures=[]"
+      },
+      {
+        "id": "graphics_probe",
+        "script": "res://tests/graphics_probe_test.gd",
+        "arguments": [],
+        "checks": 22,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 2.8289,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "GRAPHICS_PROBE_TEST checks=22 failures=[]"
+      },
+      {
+        "id": "display_settings",
+        "script": "res://tests/display_settings_test.gd",
+        "arguments": [],
+        "checks": 35,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.8671,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "DISPLAY_SETTINGS checks=35 failures=[]"
+      },
+      {
+        "id": "native_camera_aspect",
+        "script": "res://tests/native_camera_aspect_test.gd",
+        "arguments": [],
+        "checks": 49,
+        "pass": true,
+        "exit_code": 0,
+        "seconds": 0.4155,
+        "errors": [],
+        "error_count": 0,
+        "warnings": [],
+        "timed_out": false,
+        "skipped": false,
+        "summary": "NATIVE_CAMERA_ASPECT checks=49 failures=[]"
       }
     ],
-    "observations": [
-      "All eight outputs retain exact source dimensions and nominal FPS, verified in the Theora header.",
-      "The intro_a video endpoint is shorter by one source frame (0.05988 seconds). Maximum full-container duration difference is 0.031954 seconds.",
-      "Theora/Vorbis is a lossy transcode. Coded-picture counts and ffprobe average-FPS estimates are not asserted to equal Bink.",
-      "All eight supplied Ogg music tracks were copied byte-for-byte; credits were decoded to UTF-8."
-    ]
+    "finished_utc": "2026-11-09T12:20:44.706110+00:00",
+    "seconds_total": 77.2811,
+    "source_fingerprint_end": "50f9ba7bae75f72da0e57a1a18cbc8f0b6b1686f18b82a24120a5b717cc93ccb",
+    "source_unchanged_during_run": true,
+    "hd_assets_fingerprint_end": "7104f712ff41b821fc55e5b1f9c72c71ca085062691ac8a1eb1c5515eeb7f18d",
+    "hd_assets_unchanged_during_run": true,
+    "total_checks": 28460,
+    "all_passed": true
   },
-  "actual_video_playback": {
-    "aspect": 2.0,
-    "closed": true,
-    "finished_count": 1,
-    "playing": true,
-    "position": 1.448495,
-    "texture_height": 160,
-    "texture_width": 320
+  "runtime_regression_scope": "Final full gameplay/projection regression before the subsequent explicit --keep-window startup fix; targeted startup/display/graphics and exported-PCK results are recorded separately",
+  "startup_window_incremental": {
+    "kind": "startup_window_cli_fix",
+    "before": {
+      "game/scripts/native_graphics_settings.gd": "78e24d2d7d765ff4e83c145a82ebdfd151bdaf5de5079a2ded7bb783a8b7dcd3",
+      "game/scripts/campaign.gd": "237dbac4b26bb22d2fad63446c5400cc446c57fead3c3f873f784bcd080936e6",
+      "docs/graphics_settings.md": "8f90fa04d7993bdff510a3686197f60eabc2a13dc991700624df9c80b34e4f99"
+    },
+    "started_unix": 1794227343.1705542,
+    "scope": "Explicit --keep-window after --; no attempt to recover consumed engine arguments.",
+    "targeted_tests": [
+      {
+        "name": "editor",
+        "exit_code": 0,
+        "checks": 0,
+        "errors": [],
+        "seconds": 5.864
+      },
+      {
+        "name": "startup_window",
+        "exit_code": 0,
+        "checks": 13,
+        "errors": [],
+        "seconds": 0.883
+      },
+      {
+        "name": "display_settings",
+        "exit_code": 0,
+        "checks": 35,
+        "errors": [],
+        "seconds": 1.005
+      },
+      {
+        "name": "graphics_settings",
+        "exit_code": 0,
+        "checks": 22,
+        "errors": [],
+        "seconds": 2.576
+      }
+    ],
+    "after": {
+      "game/scripts/native_graphics_settings.gd": "5d17789ecd5946185f0d54f552b9e3fb909a06381acf1cca9fd68f5b7eb2d17f",
+      "game/scripts/campaign.gd": "4c1c4c8923761fab15cb73a814a37ba72082c8d1081c38ccc2213a8b9b0fc650",
+      "docs/graphics_settings.md": "1f1b10372c257e3892441a1d862b6b1b85f5cd440409f76cb382ef9ed411d92c",
+      "game/tests/startup_window_test.gd": "e3a4fbf422181704475b9fe558215dc6323aa9b1bce4e7ae298fc45f9ea4f136"
+    },
+    "targeted_passed": true,
+    "coverage": "Incremental startup-window regression; prior full aggregate is retained and was not rerun. Real exported PCK and GPU cases recorded separately by recover_runtime.",
+    "post_gpu_trace_correction": "Restore mode alone for fullscreen/maximized; size/position only for windowed to avoid queued X11 ConfigureNotify resetting fullscreen.",
+    "clean_incremental": ".work/clean_030_final_report.json",
+    "gpu_test": {
+      "checks": 18,
+      "passed": true,
+      "display_screen": [
+        4096,
+        2304
+      ],
+      "engine_window_args": [
+        "--windowed",
+        "--resolution",
+        "1280x720"
+      ],
+      "user_args": [
+        "--keep-window"
+      ],
+      "reported_by": "recover_runtime",
+      "disk_log_verified": true
+    },
+    "production_menu": {
+      "requested": [
+        1280,
+        720
+      ],
+      "actual": [
+        1280,
+        720
+      ],
+      "campaign_save_created": false,
+      "reported_by": "recover_runtime"
+    }
+  },
+  "runtime_checks_total": 28460,
+  "clean_checkout_without_originals": {
+    "kind": "current_public_source_clean_checkout",
+    "started_utc": "2026-11-09T12:10:16.212519+00:00",
+    "source_count": 159,
+    "source_bytes": 1229538,
+    "source_fingerprint": "77346f1e768eb61f8add6047ba603fdf21c4fae4444b554bcdf43a9c44ebd044",
+    "imported_game_assets_present": false,
+    "hd_pack_present": false,
+    "tests": [
+      {
+        "id": "editor_import",
+        "checks": null,
+        "expected_checks": null,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 5.2164,
+        "timed_out": false
+      },
+      {
+        "id": "smoke",
+        "checks": 64,
+        "expected_checks": 64,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.8479,
+        "timed_out": false
+      },
+      {
+        "id": "save",
+        "checks": 35,
+        "expected_checks": 35,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.276,
+        "timed_out": false
+      },
+      {
+        "id": "native_resume",
+        "checks": 77,
+        "expected_checks": 77,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 1.2092,
+        "timed_out": false
+      },
+      {
+        "id": "graphics",
+        "checks": 22,
+        "expected_checks": 22,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.8682,
+        "timed_out": false
+      },
+      {
+        "id": "graphics_safe",
+        "checks": 17,
+        "expected_checks": 17,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.7414,
+        "timed_out": false
+      },
+      {
+        "id": "hd_texture_pack",
+        "checks": 7,
+        "expected_checks": 7,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.2844,
+        "timed_out": false
+      },
+      {
+        "id": "graphics_probe",
+        "checks": 22,
+        "expected_checks": 22,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 3.0025,
+        "timed_out": false
+      },
+      {
+        "id": "display_settings",
+        "checks": 35,
+        "expected_checks": 35,
+        "pass": true,
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.7331,
+        "timed_out": false
+      }
+    ],
+    "seconds_total": 13.1824,
+    "finished_utc": "2026-11-09T12:10:29.406482+00:00",
+    "all_passed": true,
+    "total_checks": 279,
+    "runtime_same_as_main": true,
+    "runtime_changes_after_snapshot": [],
+    "runtime_fingerprint": "0ace480068cdfef6f7d1ebca10fe98e51f35ec06f2092b754bd8b279ee8a293c",
+    "incremental_camera": {
+      "updated_utc": "2026-11-09T12:19:10.468935+00:00",
+      "files": [
+        {
+          "path": "game/scripts/native_camera.gd",
+          "previous_sha256": "f14082e41fbe072dcaf9bf704feb7ccf6a1462d15d433669aad4a1f53f6f3eef",
+          "new_sha256": "df86f142c59ff1797c6ef373a61b0597e8dbe0493505e97505590e5931bedc02"
+        },
+        {
+          "path": "game/tests/native_camera_aspect_test.gd",
+          "previous_sha256": null,
+          "new_sha256": "ee9c4cc9fb972e179adc9e49cece065109f13bb8a0a0b5cb753775ee7133a666"
+        },
+        {
+          "path": "game/tests/native_camera_aspect_test.gd.uid",
+          "previous_sha256": null,
+          "new_sha256": "7583fcd999b4d144245c298b0454529882235ce96f79dfeeba91ea58144a2053"
+        },
+        {
+          "path": "docs/graphics_settings.md",
+          "previous_sha256": "56e590f5edea83eb6dd42351956ec46c71a66f0d73e6a0a9323412d5ff500c2d",
+          "new_sha256": "8f90fa04d7993bdff510a3686197f60eabc2a13dc991700624df9c80b34e4f99"
+        }
+      ],
+      "tests": [
+        {
+          "id": "editor_import_camera",
+          "exit_code": 0,
+          "checks": null,
+          "errors": [],
+          "seconds": 5.526,
+          "pass": true
+        },
+        {
+          "id": "native_camera_aspect",
+          "exit_code": 0,
+          "checks": 49,
+          "errors": [],
+          "seconds": 0.471,
+          "pass": true
+        }
+      ],
+      "checks": 49,
+      "all_passed": true,
+      "coverage": "Original 279-check clean gate retained above. After updating only native_camera.gd, the new aspect test and its docs/UID, editor import and 49 production-camera resize/projection checks rerun. Original 279 suites were not rerun for this update.",
+      "runtime_same_as_main": true,
+      "runtime_changes_not_covered": [],
+      "runtime_fingerprint": "a5872f304513e8464ba8f71e6d68d9f06d69a35e1494549251a4002372d17ecd"
+    },
+    "incremental_startup": {
+      "updated_utc": "2026-11-09T12:32:52.096408+00:00",
+      "files": [
+        {
+          "path": "game/scripts/native_graphics_settings.gd",
+          "previous_sha256": "78e24d2d7d765ff4e83c145a82ebdfd151bdaf5de5079a2ded7bb783a8b7dcd3",
+          "new_sha256": "5d17789ecd5946185f0d54f552b9e3fb909a06381acf1cca9fd68f5b7eb2d17f"
+        },
+        {
+          "path": "game/scripts/campaign.gd",
+          "previous_sha256": "237dbac4b26bb22d2fad63446c5400cc446c57fead3c3f873f784bcd080936e6",
+          "new_sha256": "4c1c4c8923761fab15cb73a814a37ba72082c8d1081c38ccc2213a8b9b0fc650"
+        },
+        {
+          "path": "game/tests/startup_window_test.gd",
+          "previous_sha256": null,
+          "new_sha256": "e3a4fbf422181704475b9fe558215dc6323aa9b1bce4e7ae298fc45f9ea4f136"
+        },
+        {
+          "path": "game/tests/startup_window_test.gd.uid",
+          "previous_sha256": null,
+          "new_sha256": "a64b648b3fd3b0bc95c34f1a26567f0e6230f8bf2bc9cec091c9c31fddec6a18"
+        },
+        {
+          "path": "docs/graphics_settings.md",
+          "previous_sha256": "8f90fa04d7993bdff510a3686197f60eabc2a13dc991700624df9c80b34e4f99",
+          "new_sha256": "1f1b10372c257e3892441a1d862b6b1b85f5cd440409f76cb382ef9ed411d92c"
+        }
+      ],
+      "tests": [
+        {
+          "id": "editor_import_startup",
+          "exit_code": 0,
+          "checks": null,
+          "errors": [],
+          "seconds": 8.4005,
+          "pass": true
+        },
+        {
+          "id": "startup_window",
+          "exit_code": 0,
+          "checks": 13,
+          "errors": [],
+          "seconds": 0.7516,
+          "pass": true
+        }
+      ],
+      "checks": 13,
+      "all_passed": true,
+      "coverage": "Original 279-check clean gate and incremental 49 camera checks retained; neither rerun. Copied changed graphics/campaign startup code and new startup regression, then editor import and 13 explicit --keep-window checks. Real GPU and exported-PCK validation remain separate.",
+      "runtime_same_as_main": true,
+      "runtime_changes_not_covered": [],
+      "runtime_fingerprint": "95fe574efdb9b669003c72188d9dd2ac140c9de68ca0bacf4dc7dc500c3359b3"
+    },
+    "latest_incremental": "incremental_startup"
+  },
+  "normal_input_checks": {
+    "method": "Actual Input actions and physics, no teleport, collision disable or direct checkpoint activation",
+    "full_manual_playthrough": false,
+    "beach_first_checkpoint": {
+      "level": "g006",
+      "stop_reason": "checkpoint_reached",
+      "controlled_ticks": 2502,
+      "controlled_seconds": 41.7,
+      "diamonds_final": 14,
+      "diamonds_peak": 14,
+      "checkpoint_id": "g010_o0210_t10300",
+      "health": 2,
+      "lives_including_current": 4,
+      "respawns": 0,
+      "native_jump_entries": 13,
+      "attack_count": 10,
+      "crouched_ticks": 60,
+      "final_position": [
+        407.35595703125,
+        -9.56068420410156,
+        -18.4283599853516
+      ],
+      "final_grounded": true
+    },
+    "factory_after_fatal_fall": {
+      "lives_before": 4,
+      "lives_after": 3,
+      "respawns": 1,
+      "health": 10,
+      "stale_area_enter_after_respawn_rejected": true
+    }
+  },
+  "hd_textures": {
+    "source_texture_count": 6,
+    "replacement_dimensions": [
+      1254,
+      1254
+    ],
+    "original_models_retained": true,
+    "full_campaign_hd_replacement": false,
+    "normal_or_roughness_maps": false,
+    "mipmaps": true,
+    "anisotropic_filtering_requested": true,
+    "material_lifetime_cleanup": "Automatic wall-clock cleanup also during pause, tested with 25 released owners and one live owner",
+    "same_frame_comparison": {
+      "passed": true,
+      "same_frozen_state": true,
+      "active_materials": 73,
+      "changed_pixels": 515891,
+      "msaa_samples": 4,
+      "render_scale": 1.0,
+      "two_different_gameplay_runs": false,
+      "neural_rendering": false
+    }
+  },
+  "display": {
+    "window_presets": [
+      [
+        1280,
+        720
+      ],
+      [
+        1920,
+        1080
+      ],
+      [
+        2560,
+        1440
+      ],
+      [
+        3840,
+        2160
+      ],
+      [
+        1920,
+        1200
+      ],
+      [
+        2560,
+        1600
+      ],
+      [
+        3440,
+        1440
+      ],
+      [
+        5120,
+        1440
+      ]
+    ],
+    "custom_window_dimensions": true,
+    "desktop_auto": true,
+    "fullscreen_uses_monitor_native_size": true,
+    "os_video_mode_not_changed": true,
+    "hidpi_enabled": true,
+    "ui_scale": "Canvas Items, Expand, uniform scale from 1280x720",
+    "preview_rollback_seconds": 15,
+    "unconfirmed_display_settings_saved": false,
+    "engine_window_preserved_with_explicit_user_flag": "--keep-window",
+    "raw_consumed_engine_arguments_are_not_inferred": true,
+    "ultrawide_camera": "Preserve 16:9 vertical field by expanding horizontal FOV; source pose and FOV data unchanged"
+  },
+  "dlss5": {
+    "backend": "GITC-Uplift 1.8.0 / ReShade 6.8.0 Addon, OpenGL to private D3D12 NR evaluator",
+    "runtime": "ShortFuse compat-fp16 310.9.16",
+    "model_execution": "not_run_on_target_hardware",
+    "native_godot_integration": false,
+    "native_windows_execution": false,
+    "core_game_requires_nvidia": false,
+    "clean_executable_directory_has_neural_dlls": false,
+    "motion": "Lumenite image-estimated vectors; not native engine motion",
+    "neural_probe_frame_limit": 320,
+    "neural_probe_size": [
+      1280,
+      720
+    ],
+    "neural_probe_timeout_seconds": 120,
+    "probe_guarantees_4k_memory_or_performance": false,
+    "runtime_gate": "Fresh backend model/evaluate/returned-frame evidence plus real game renderer probe",
+    "shader_compilation_on_target_validated": false,
+    "visual_quality_validated": false,
+    "performance_benchmarked": false,
+    "minimum_clean_renderer": "Godot OpenGL 3.3 or compatible GLES 3/ANGLE path",
+    "universal_gpu_compatibility_promised": false,
+    "lockfile": "integrations/dlss5/dependencies.lock.json"
   },
   "render_captures": [
     {
-      "filename": "chapter_01_beach.png",
-      "size_bytes": 373176,
-      "sha256": "32648faf2fb28a86aa01fb1614bca8380699101a51b5ab985135478b8b5ba431",
+      "filename": "hd_comparison_original.png",
+      "size_bytes": 632160,
+      "sha256": "3f0b35bc60aa979d9bce882e0654bca2e10c55dd0def5911ae2abf26c6773e27",
       "width": 1280,
       "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
       "synthetic_mockup": false,
-      "from_exported_pck": false
+      "neural_rendering": false,
+      "renderer": "Godot 4.7.2 Compatibility / Mesa llvmpipe"
     },
     {
-      "filename": "chapter_02_trail.png",
-      "size_bytes": 593907,
-      "sha256": "687f705abccfedf79a659a23b691424f59722e1af82fdb8dadcb98028379dca0",
+      "filename": "hd_comparison_enhanced.png",
+      "size_bytes": 1023905,
+      "sha256": "735c333f309501ccc6e8e6f71c11dbaa61e11ac959845391b4214fcdc08985e4",
       "width": 1280,
       "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
       "synthetic_mockup": false,
-      "from_exported_pck": false
+      "neural_rendering": false,
+      "renderer": "Godot 4.7.2 Compatibility / Mesa llvmpipe"
     },
     {
-      "filename": "chapter_03_mines.png",
-      "size_bytes": 833894,
-      "sha256": "64d66ab4a49680254f993ffa0b465210215fd3ea77146f379a0f6e871f948a43",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
+      "filename": "exported_pck_4k.png",
+      "width": 3840,
+      "height": 2160,
+      "sha256": "e4f98715e795d339258b4c487e0371be0b86c1ef114171df1d4c3e57dc85b7e9",
+      "from_exported_pck": true,
       "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "chapter_04_supply.png",
-      "size_bytes": 442827,
-      "sha256": "c1e298aa183466f618a4ec3275e02d3e85e5de52855893f71875dfcab6d8dc4f",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "chapter_05_pipeline.png",
-      "size_bytes": 503155,
-      "sha256": "23bb8bb64189bac9563c3e28648819ff7569773f2196028fa28757b9b34b383f",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "chapter_06_factory.png",
-      "size_bytes": 611424,
-      "sha256": "68527ff86d1ea16c14399918a180158df23feb7d2b76bc7d83b04ac53c278864",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "chapter_07_meltdown.png",
-      "size_bytes": 433234,
-      "sha256": "45c2e8b933ca0ceeae919fff921b692a413e6e67b38c07d68cf9cd7d05d060de",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "chapter_08_getaway.png",
-      "size_bytes": 614431,
-      "sha256": "b2b3a80fb984de34a95564832acfa0dd8b80b452d030e112268b04a5c6271e64",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": false
-    },
-    {
-      "filename": "windows_pack_mines.png",
-      "size_bytes": 832850,
-      "sha256": "18a5ad78e739ab8c9dd629931213ca889fccd891079c02b3daf7376668ead901",
-      "width": 1280,
-      "height": 720,
-      "renderer": "Godot 4.7.2 OpenGL Compatibility / Mesa llvmpipe",
-      "original_assets_imported": true,
-      "synthetic_mockup": false,
-      "from_exported_pck": true
+      "neural_rendering": false,
+      "renderer": "Godot 4.7.2 Compatibility / Mesa llvmpipe"
     }
   ],
   "windows_export": {
-    "exit_code": 0,
     "filename": "Hugo_Remaster.exe",
-    "size_bytes": 297057232,
-    "sha256": "d9ada5a954fe2c8f85323584b855d1eec936cead6c3342b16e139d2af3a0e359",
+    "size_bytes": 307995160,
+    "sha256": "1afd515276606a3134d7078972c33ea85e2b7f7b4f82c8142b40be2506234a62",
     "pe_signature": "PE\\0\\0",
     "machine": "AMD64 (0x8664)",
     "optional_header": "PE32+ (0x20b)",
     "pck_footer_magic": "GDPC",
-    "pck_size_bytes": 187788740,
+    "pck_size_bytes": 198726668,
     "pck_embedded": true,
+    "pck_format": 4,
+    "export_exit_code": 0,
     "native_windows_execution": false,
-    "private_imported_assets": true,
+    "verification_method": "PE/PCK structure and execution of embedded PCK with matching Linux Godot from an empty host; not native Windows execution",
     "published_to_github": false,
-    "packed_campaign_smoke": {
-      "checks_passed": 26604,
-      "chapters": 8,
-      "exit_code": 0,
-      "failures": []
-    },
-    "packed_resource_inventory": {
+    "tests": [
+      {
+        "id": "resource_inventory",
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 11.8824,
+        "completion": "PACKED_INVENTORY {\"by_type\":{\"glb\":53,\"json\":13,\"ogg\":8,\"ogv\":8,\"png\":144,\"txt\":1,\"wav\":355},\"checked_generated\":582,\"failures\":[],\"hd_textures\":[{\"height\":1254,\"path\":\"res://assets/hd/sand_hd.png\",\"width\":1254},{\"height\":1254,\"path\":\"res://assets/hd/stone_hd.png\",\"width\":1254},{\"height\":1254,\"path\":\"res://assets/hd/pebble_path_hd.png\",\"width\":1254},{\"height\":1254,\"path\":\"res://assets/hd/grass_hd.png\",\"width\":1254},{\"height\":1254,\"path\":\"res://assets/hd/earth_hd.png\",\"width\":1254},{\"height\":1254,\"path\":\"res://assets/hd/palm_bark_hd.png\",\"width\":1254}],\"importer_version\":\"0.3.0\",\"kind\":\"embedded_windows_pck_resource_inventory\",\"native_windows_execution\":false,\"passed\":true,\"test_host\":\"matching Linux Godot from an empty host directory\"}",
+        "passed": true
+      },
+      {
+        "id": "campaign",
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 9.5715,
+        "passed": true,
+        "checks": 26604,
+        "chapters": 8,
+        "failures": []
+      },
+      {
+        "id": "hd",
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.87,
+        "completion": "HD_TEXTURE_PACK checks=53 failures=[]",
+        "passed": true
+      },
+      {
+        "id": "camera_aspect",
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 0.5674,
+        "completion": "NATIVE_CAMERA_ASPECT checks=49 failures=[]",
+        "passed": true
+      },
+      {
+        "id": "startup_window",
+        "exit_code": 0,
+        "errors": [],
+        "seconds": 1.0195,
+        "completion": "STARTUP_WINDOW checks=13 failures=[] display=headless",
+        "user_arguments": [
+          "--keep-window"
+        ],
+        "passed": true,
+        "harness_correction": "The first invocation omitted the explicitly required --keep-window flag; only this test was rerun with its documented argument."
+      }
+    ],
+    "resource_inventory": {
       "by_type": {
-        "glb": 52,
+        "glb": 53,
         "json": 13,
         "ogg": 8,
         "ogv": 8,
@@ -1079,28 +1267,1454 @@
         "txt": 1,
         "wav": 355
       },
-      "checked": 581,
-      "failures": []
+      "checked_generated": 582,
+      "failures": [],
+      "hd_textures": [
+        {
+          "height": 1254,
+          "path": "res://assets/hd/sand_hd.png",
+          "width": 1254
+        },
+        {
+          "height": 1254,
+          "path": "res://assets/hd/stone_hd.png",
+          "width": 1254
+        },
+        {
+          "height": 1254,
+          "path": "res://assets/hd/pebble_path_hd.png",
+          "width": 1254
+        },
+        {
+          "height": 1254,
+          "path": "res://assets/hd/grass_hd.png",
+          "width": 1254
+        },
+        {
+          "height": 1254,
+          "path": "res://assets/hd/earth_hd.png",
+          "width": 1254
+        },
+        {
+          "height": 1254,
+          "path": "res://assets/hd/palm_bark_hd.png",
+          "width": 1254
+        }
+      ],
+      "importer_version": "0.3.0",
+      "kind": "embedded_windows_pck_resource_inventory",
+      "native_windows_execution": false,
+      "passed": true,
+      "test_host": "matching Linux Godot from an empty host directory"
     },
-    "packed_render": {
-      "exit_code": 0,
-      "chapter": "g027",
-      "capture": "windows_pack_mines.png"
-    },
-    "verification_method": "PE/PCK structural checks and execution of the exported embedded PCK using the matching Linux Godot engine from an empty host directory. This is not native Windows executable execution."
+    "passed": true,
+    "packed_4k_render": {
+      "campaign_uses_exported_resources": true,
+      "captures_normal_spawn": true,
+      "chapter": {
+        "bounds": [
+          [
+            93.10203125,
+            -32.4544970703125,
+            -85.8801635742188
+          ],
+          [
+            1061.0084375,
+            26.4537490844727,
+            238.41490234375
+          ]
+        ],
+        "geometry_path": "levels/g006.glb",
+        "geometry_sha256": "44c7afc52ff45afda378cc034e30a98309e0e6959aa8c86c47f6dc332637693c",
+        "groups": [
+          6.0,
+          7.0,
+          8.0,
+          9.0,
+          10.0,
+          11.0,
+          12.0,
+          13.0,
+          14.0,
+          15.0,
+          16.0
+        ],
+        "id": "g006",
+        "main_group": 6.0,
+        "manifest_path": "levels/g006.json",
+        "source_name": "S05_TheBeach",
+        "source_spawn": [
+          12012.10546875,
+          3300.611328125,
+          -3037.47924804688
+        ],
+        "spawn": [
+          120.1210546875,
+          -30.3747924804688,
+          -33.00611328125
+        ],
+        "spawn_owner_id": "g006_o0183_t10000",
+        "terrain_bounds": [
+          [
+            93.10203125,
+            -32.4544970703125,
+            -85.8801635742188
+          ],
+          [
+            1061.0084375,
+            26.4537490844727,
+            228.717734375
+          ]
+        ],
+        "title": "Пляж",
+        "validation": {
+          "camera_centered_backmaps": 1.0,
+          "checked_mesh_indices": true,
+          "checked_reference_bounds": true,
+          "direct_owners": 205.0,
+          "effect_instances": 132.0,
+          "exported_actions": 400.0,
+          "glb": {
+            "bounds": [
+              [
+                -97.4000015258789,
+                -26.4200000762939,
+                -71.120002746582
+              ],
+              [
+                97.2399978637695,
+                26.4200000762939,
+                70.9599990844727
+              ]
+            ],
+            "bytes": 7388284.0,
+            "checked_action_node_paths": true,
+            "checked_buffer_lengths": true,
+            "checked_effect_anchor_matrices": true,
+            "checked_embedded_images": true,
+            "checked_indices": true,
+            "checked_instance_matrices": true,
+            "checked_unique_node_names": true,
+            "effect_anchor_nodes": 132.0,
+            "embedded_texture_sizes": [
+              [
+                8.0,
+                8.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                16.0,
+                32.0
+              ],
+              [
+                64.0,
+                32.0
+              ],
+              [
+                16.0,
+                16.0
+              ],
+              [
+                16.0,
+                16.0
+              ],
+              [
+                16.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                42.0,
+                64.0
+              ],
+              [
+                32.0,
+                64.0
+              ],
+              [
+                32.0,
+                64.0
+              ],
+              [
+                32.0,
+                64.0
+              ],
+              [
+                32.0,
+                64.0
+              ],
+              [
+                32.0,
+                53.0
+              ],
+              [
+                16.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                256.0,
+                256.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                32.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                32.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                32.0
+              ],
+              [
+                32.0,
+                72.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                128.0,
+                128.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                25.0
+              ],
+              [
+                64.0,
+                128.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                9.0
+              ],
+              [
+                64.0,
+                8.0
+              ],
+              [
+                64.0,
+                128.0
+              ],
+              [
+                120.0,
+                64.0
+              ],
+              [
+                128.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                8.0,
+                8.0
+              ],
+              [
+                16.0,
+                16.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                16.0,
+                16.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                16.0,
+                8.0
+              ],
+              [
+                8.0,
+                16.0
+              ],
+              [
+                16.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                64.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                128.0,
+                128.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                32.0,
+                32.0
+              ],
+              [
+                48.0,
+                64.0
+              ],
+              [
+                128.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ],
+              [
+                64.0,
+                64.0
+              ]
+            ],
+            "instance_count": 882.0,
+            "material_batching": {
+              "animated_materials": 28.0,
+              "checked_animated_surface_isolation": true,
+              "checked_every_morph_triangle_attribute": true,
+              "checked_every_triangle_attribute": true,
+              "checked_native_render_identity": true,
+              "exported_materials": 143.0,
+              "exported_surfaces": 745.0,
+              "exported_triangles": 32359.0,
+              "exported_vertices": 38672.0,
+              "maximum_surfaces_per_mesh": 34.0,
+              "native_material_modes": {
+                "add": 1.0,
+                "alpha": 10.0,
+                "multiply_inverse": 2.0,
+                "opaque": 130.0
+              },
+              "source_surfaces": 1979.0,
+              "source_triangles": 32359.0,
+              "source_vertices": 38672.0,
+              "surface_limit": 128.0
+            },
+            "matrix_roundtrip_tolerance": 0.0001,
+            "maximum_matrix_roundtrip_error": 5.79833982783384e-06,
+            "meshes": 352.0,
+            "morph_target_accessors": 4136.0,
+            "owner_nodes": 418.0,
+            "submeshes": 745.0,
+            "triangles": 32359.0,
+            "vertices": 38672.0,
+            "world_bounds": [
+              [
+                93.10203125,
+                -32.4544970703125,
+                -85.8801635742188
+              ],
+              [
+                1061.0084375,
+                26.4537490844727,
+                238.41490234375
+              ]
+            ]
+          },
+          "graph_owners": 168.0,
+          "initial_state_policy": "first state, first stored matrix and first stored vertex sample",
+          "instance_triangles": 58222.0,
+          "instance_vertices": 69040.0,
+          "mesh_instances": 882.0,
+          "native_collision": {
+            "checked_every_source_face_index": true,
+            "meshes": 10.0,
+            "render_triangle_fallbacks": 0.0,
+            "segments_without_source_tree": 0.0,
+            "triangle_references": 5776.0,
+            "unique_triangles": 2906.0
+          },
+          "native_scopes": {
+            "actor_ranges_checked": 410.0,
+            "authored_never_active_ranges": 0.0,
+            "child_offsets_checked": 10.0,
+            "neighbor_links_checked": 20.0,
+            "no_guessed_spatial_scope_bounds": true,
+            "trigger_planes_checked": 9.0
+          },
+          "non_rendering_owners": 44.0,
+          "owner_type_counts": {
+            "10000": 1.0,
+            "10101": 1.0,
+            "10200": 16.0,
+            "10204": 8.0,
+            "10300": 77.0,
+            "10301": 82.0,
+            "10400": 10.0,
+            "10401": 194.0,
+            "10402": 1.0,
+            "10403": 1.0,
+            "10500": 9.0,
+            "10501": 8.0,
+            "10600": 9.0,
+            "10602": 1.0
+          },
+          "owners": 418.0,
+          "player_shadow_graphs": 1.0,
+          "source_groups": 11.0,
+          "unique_emitter_records": 7.0,
+          "unique_mesh_records": 352.0,
+          "unresolved_references": 0.0,
+          "unsupported_renderable_types": {}
+        }
+      },
+      "engine": {
+        "build": "official",
+        "hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+        "hex": 263938,
+        "major": 4,
+        "minor": 7,
+        "patch": 2,
+        "status": "stable",
+        "string": "4.7.2-stable (official)",
+        "timestamp": 0
+      },
+      "engine_binary": "Godot_v4.7.2-stable_linux.x86_64",
+      "exposed_engine_args": [
+        "--script",
+        "exported_pck_4k_probe.gd"
+      ],
+      "exposed_user_args": [
+        "--level=g006",
+        "--keep-window",
+        "--qa-pack-path=builds/regular_030/Hugo_Remaster.exe"
+      ],
+      "image": "exported_pck_4k.png",
+      "image_sha256": "e4f98715e795d339258b4c487e0371be0b86c1ef114171df1d4c3e57dc85b7e9",
+      "kind": "exported_embedded_pck_actual_4k_frame",
+      "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+      "main_pack": "Hugo_Remaster.exe",
+      "main_pack_sha256": "1afd515276606a3134d7078972c33ea85e2b7f7b4f82c8142b40be2506234a62",
+      "manual_playthrough": false,
+      "msaa_enum": 2,
+      "msaa_samples": 4,
+      "native_image_size": [
+        3840,
+        2160
+      ],
+      "original_windows_executable_executed": false,
+      "passed": true,
+      "player_position": "(120.1211, -30.31033, -33.00611)",
+      "render_scale": 1.0,
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "resource_host": "",
+      "scene": "res://scenes/campaign.tscn",
+      "source_hugo_model_loaded": true,
+      "texture_pack": {
+        "active_materials": 73,
+        "available": true,
+        "enabled": true,
+        "source_textures": 6
+      },
+      "window_size": [
+        3840,
+        2160
+      ]
+    }
+  },
+  "historical_reference_validation": {
+    "milestone": "0.2.0-dev",
+    "commit": "30e3e41a4f2811564061a79febf0f565e69119da",
+    "url": "https://github.com/TechWisard/hugo-remaster/blob/30e3e41a4f2811564061a79febf0f565e69119da/docs/validation.json",
+    "supplemental_animation_camera_particle_audio_and_media_reference_probes_rerun_in_030": false
   },
   "limits": [
-    "Original low-resolution models and textures are restored; no new HD artwork is claimed.",
-    "Godot resolves contacts instead of emulating the complete legacy XY-height collision solver.",
-    "Native culling, transparent ordering, dynamic lighting, framebuffer precision and edge sampling are not fully identical.",
-    "Particles use a 60 Hz physics update; source frame-dependent equations can differ with original update frequency.",
-    "Godot spatial panning replaces DirectSound; source attenuation and cue data are preserved.",
-    "Movies are Theora/Vorbis transcodes. intro_a video has a one-frame endpoint difference.",
-    "Native scopes use prebuilt resources; asynchronous CD-read latency is not emulated.",
-    "The activation condition for the separate Hugo auxiliary graph at record+0x0C remains unverified; it is distinct from the 27 recovered surface-death graphs.",
-    "Automated traversals do not constitute complete manual playthroughs of all eight chapters.",
-    "Native Windows executable execution was not performed.",
-    "Original assets, derived screenshots and packaged builds are excluded from the public Git repository."
+    "No complete manual playthrough of all eight chapters is claimed.",
+    "Godot contact solver and rendering differ from the complete legacy engine.",
+    "Recovered pending fatal-knockback state is not implemented yet.",
+    "Six optional HD replacements, not all textures or new high-poly models.",
+    "Native Windows, Windows ANGLE and actual RTX NR execution remain unverified here.",
+    "DLSS probe success at 1280x720 does not guarantee 4K performance/VRAM or recovery from any GPU hang.",
+    "Original assets, HD files, derived images, game builds and downloaded dependency binaries are excluded from public Git."
   ],
-  "github_actions_used": false
+  "github_actions_used": false,
+  "display_render_verification": {
+    "captures": [
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1080
+        ],
+        "kind": "menu",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1080_menu.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1080
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1080
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1080
+        ],
+        "kind": "options_top",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1080_options_top.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1080
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1080
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1080
+        ],
+        "kind": "options_bottom",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1080_options_bottom.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1080
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1080
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          2560,
+          1440
+        ],
+        "kind": "menu",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "2560x1440_menu.png",
+        "render_scale": 1.0,
+        "requested": [
+          2560,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          2560,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          2560,
+          1440
+        ],
+        "kind": "options_top",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "2560x1440_options_top.png",
+        "render_scale": 1.0,
+        "requested": [
+          2560,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          2560,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          2560,
+          1440
+        ],
+        "kind": "options_bottom",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "2560x1440_options_bottom.png",
+        "render_scale": 1.0,
+        "requested": [
+          2560,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          2560,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3840,
+          2160
+        ],
+        "kind": "menu",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3840x2160_menu.png",
+        "render_scale": 1.0,
+        "requested": [
+          3840,
+          2160
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3840,
+          2160
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3840,
+          2160
+        ],
+        "kind": "options_top",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3840x2160_options_top.png",
+        "render_scale": 1.0,
+        "requested": [
+          3840,
+          2160
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3840,
+          2160
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3840,
+          2160
+        ],
+        "kind": "options_bottom",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3840x2160_options_bottom.png",
+        "render_scale": 1.0,
+        "requested": [
+          3840,
+          2160
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3840,
+          2160
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3440,
+          1440
+        ],
+        "kind": "menu",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1720.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3440x1440_menu.png",
+        "render_scale": 1.0,
+        "requested": [
+          3440,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3440,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3440,
+          1440
+        ],
+        "kind": "options_top",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1720.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3440x1440_options_top.png",
+        "render_scale": 1.0,
+        "requested": [
+          3440,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3440,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3440,
+          1440
+        ],
+        "kind": "options_bottom",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1720.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3440x1440_options_bottom.png",
+        "render_scale": 1.0,
+        "requested": [
+          3440,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3440,
+          1440
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1200
+        ],
+        "kind": "menu",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 800.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1200_menu.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1200
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1200
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1200
+        ],
+        "kind": "options_top",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 800.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1200_options_top.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1200
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1200
+        ]
+      },
+      {
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1200
+        ],
+        "kind": "options_bottom",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 800.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1200_options_bottom.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1200
+        ],
+        "texture_pack": {
+          "active_materials": 0,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1200
+        ]
+      },
+      {
+        "camera": {
+          "feet_screen": "(609.5198, 254.4848)",
+          "head_and_feet_inside": true,
+          "head_screen": "(608.005, 54.6876)",
+          "horizontal_fov_degrees": 50.0253562927246,
+          "keep_aspect": 0,
+          "matrix": "[X: (2.143269, 0.0, 0.0, 0.0), Y: (0.0, 3.810256, 0.0, 0.0), Z: (0.0, 0.0, -1.001201, -1.0), W: (0.0, 0.0, -0.60036, 0.0)]",
+          "pose": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+          "projection_aspect": 1.77777770361736
+        },
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1080
+        ],
+        "kind": "hud",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1080_hud.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1080
+        ],
+        "texture_pack": {
+          "active_materials": 73,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1080
+        ]
+      },
+      {
+        "camera": {
+          "feet_screen": "(609.5198, 254.4848)",
+          "head_and_feet_inside": true,
+          "head_screen": "(608.005, 54.6876)",
+          "horizontal_fov_degrees": 50.0253562927246,
+          "keep_aspect": 0,
+          "matrix": "[X: (2.143269, 0.0, 0.0, 0.0), Y: (0.0, 3.810256, 0.0, 0.0), Z: (0.0, 0.0, -1.001201, -1.0), W: (0.0, 0.0, -0.60036, 0.0)]",
+          "pose": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+          "projection_aspect": 1.77777770361736
+        },
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          2560,
+          1440
+        ],
+        "kind": "hud",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "2560x1440_hud.png",
+        "render_scale": 1.0,
+        "requested": [
+          2560,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 73,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          2560,
+          1440
+        ]
+      },
+      {
+        "camera": {
+          "feet_screen": "(609.5198, 254.4848)",
+          "head_and_feet_inside": true,
+          "head_screen": "(608.005, 54.6876)",
+          "horizontal_fov_degrees": 50.0253562927246,
+          "keep_aspect": 0,
+          "matrix": "[X: (2.143269, 0.0, 0.0, 0.0), Y: (0.0, 3.810256, 0.0, 0.0), Z: (0.0, 0.0, -1.001201, -1.0), W: (0.0, 0.0, -0.60036, 0.0)]",
+          "pose": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+          "projection_aspect": 1.77777770361736
+        },
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3840,
+          2160
+        ],
+        "kind": "hud",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3840x2160_hud.png",
+        "render_scale": 1.0,
+        "requested": [
+          3840,
+          2160
+        ],
+        "texture_pack": {
+          "active_materials": 73,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3840,
+          2160
+        ]
+      },
+      {
+        "camera": {
+          "feet_screen": "(829.5198, 254.4848)",
+          "head_and_feet_inside": true,
+          "head_screen": "(828.005, 54.6876)",
+          "horizontal_fov_degrees": 64.1723709106445,
+          "keep_aspect": 0,
+          "matrix": "[X: (1.594991, 0.0, 0.0, 0.0), Y: (0.0, 3.810256, 0.0, 0.0), Z: (0.0, 0.0, -1.001201, -1.0), W: (0.0, 0.0, -0.60036, 0.0)]",
+          "pose": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+          "projection_aspect": 2.38888882245351
+        },
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          3440,
+          1440
+        ],
+        "kind": "hud",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1720.0, 720.0)]",
+        "msaa_enum": 2,
+        "path": "3440x1440_hud.png",
+        "render_scale": 1.0,
+        "requested": [
+          3440,
+          1440
+        ],
+        "texture_pack": {
+          "active_materials": 73,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          3440,
+          1440
+        ]
+      },
+      {
+        "camera": {
+          "feet_screen": "(609.5198, 294.4848)",
+          "head_and_feet_inside": true,
+          "head_screen": "(608.005, 94.68761)",
+          "horizontal_fov_degrees": 50.0253562927246,
+          "keep_aspect": 0,
+          "matrix": "[X: (2.143269, 0.0, 0.0, 0.0), Y: (0.0, 3.42923, 0.0, 0.0), Z: (0.0, 0.0, -1.001201, -1.0), W: (0.0, 0.0, -0.60036, 0.0)]",
+          "pose": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+          "projection_aspect": 1.6
+        },
+        "content_scale_aspect": 4,
+        "content_scale_mode": 1,
+        "image": [
+          1920,
+          1200
+        ],
+        "kind": "hud",
+        "logical_viewport": "[P: (0.0, 0.0), S: (1280.0, 800.0)]",
+        "msaa_enum": 2,
+        "path": "1920x1200_hud.png",
+        "render_scale": 1.0,
+        "requested": [
+          1920,
+          1200
+        ],
+        "texture_pack": {
+          "active_materials": 73,
+          "available": true,
+          "enabled": true,
+          "source_textures": 6
+        },
+        "unexpected_clipping": [],
+        "window": [
+          1920,
+          1200
+        ]
+      }
+    ],
+    "checks": 86,
+    "display_screen": "(4096, 2304)",
+    "failures": [],
+    "gpu_performance_benchmark": false,
+    "hud_idle_settle_frames": 60,
+    "hud_input_frames": 42,
+    "hud_pose": {
+      "action": "jump_moving",
+      "camera": "[X: (-0.02648, 0.0, 0.999649), Y: (0.330559, 0.943745, 0.008756), Z: (-0.943414, 0.330675, -0.02499), O: (104.0986, -21.2723, -33.12014)]",
+      "elapsed": 1.7,
+      "native_jump": true,
+      "phase": 0.540000012874603,
+      "player": "[X: (1.0, 0.0, 0.0), Y: (0.0, 1.0, 0.0), Z: (0.0, 0.0, 1.0), O: (126.6513, -27.27619, -33.03986)]",
+      "shadow": "[X: (-0.0, 0.0, 0.430467), Y: (0.0, 0.430467, 0.0), Z: (-0.430467, 0.0, -0.0), O: (126.6513, -30.21632, -33.03986)]"
+    },
+    "hud_pose_frozen_for_size_comparison": true,
+    "kind": "actual_native_resolution_ui_and_hud_qa",
+    "manual_playthrough": false,
+    "passed": true,
+    "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+    "source_sha256": {
+      "res://project.godot": "18be46bb0fa3f3a537f63987b2cba1fbc07fc0d428228a195d83baabc18565e0",
+      "res://scripts/campaign.gd": "237dbac4b26bb22d2fad63446c5400cc446c57fead3c3f873f784bcd080936e6",
+      "res://scripts/campaign_menu.gd": "22c11c589edcfd16d640e4f1e07b97941525f1f52d6c0cb18c1037491fd9f6ec",
+      "res://scripts/hud.gd": "247c89a65f9b2ebd2b42ee3daea6ae691eda8e2d5fd7a9760f1fa63d6c548917",
+      "res://scripts/native_camera.gd": "df86f142c59ff1797c6ef373a61b0597e8dbe0493505e97505590e5931bedc02",
+      "res://scripts/native_graphics_settings.gd": "78e24d2d7d765ff4e83c145a82ebdfd151bdaf5de5079a2ded7bb783a8b7dcd3"
+    },
+    "user_data": "Кузя — Алмазная лихорадка",
+    "full_private_report_sha256": "37c3f7133390b4ff4d5807e7f0339b053203228d0b075e74ae37c7c4923f37d0"
+  },
+  "dlss5_pack_verification": {
+    "schema": 1,
+    "created_utc": "2026-11-09T12:12:17.136338+00:00",
+    "success": true,
+    "total_checks": 37,
+    "host": "Linux x86_64",
+    "python_version": "3.12.14",
+    "powershell_version": "7.4.6 Linux x64",
+    "checks": [
+      {
+        "name": "Python pinned pack builder",
+        "command": [
+          "python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_dlss5_pack.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "checks": 7,
+        "success": true,
+        "elapsed_seconds": 0.202,
+        "log_sha256": "e0ec377fcd612f167ed462b5494cb3f5c439cba5e816690cf4dd87a452e4242c"
+      },
+      {
+        "name": "PowerShell installer, route, log and process contracts",
+        "command": [
+          ".work/dlss5_research/pwsh/pwsh",
+          "-NoLogo",
+          "-NoProfile",
+          "-File",
+          "tests/test_dlss5_scripts.ps1"
+        ],
+        "exit_code": 0,
+        "checks": 30,
+        "success": true,
+        "elapsed_seconds": 3.898,
+        "log_sha256": "38d84551f932380458cf8edcb98a2568953b79875b91cebefa7cb4b38e3961da"
+      }
+    ],
+    "execution_boundary": {
+      "original_game_executed": false,
+      "godot_windows_export_executed": false,
+      "neural_dll_loaded": false,
+      "neural_frame_rendered": false,
+      "windows_powershell_5_validated": false,
+      "windows_runtime_validated": false,
+      "shader_gpu_compilation_validated": false,
+      "synthetic_pe_pck_only": true,
+      "neural_log_classification_synthetic": true,
+      "benign_powershell_child_exit_and_timeout_executed": true
+    },
+    "review": {
+      "independent_agent": "recover_runtime",
+      "files": "Install-Hugo-DLSS5.ps1, Hugo-DLSS5.ps1, Launch-Hugo.ps1",
+      "concrete_unresolved_findings": []
+    },
+    "source_hashes": {
+      "integrations/dlss5/Install-Hugo-DLSS5.ps1": "c74194fb4e858002a2107246cc31a05a7dcd4878523ffc979eae95ee5f53b480",
+      "integrations/dlss5/README.md": "5625fdd0c257b2d4cea12cc52e71bd7834a29afc0099f38606b2f1890a2807ce",
+      "integrations/dlss5/build_pack.py": "343fd3c81265675d3adc356d7c82c9e802ed09b94d5821ef41fa5ae30b7f931e",
+      "integrations/dlss5/dependencies.lock.json": "1a89128d481da8078885f789e1c1eb64ab00797ff1cc71967d05fa762c9ab482",
+      "integrations/dlss5/templates/Hugo-DLSS5.ps1": "9c932b8f8c1cf8ffca4153bba1454692d7de6d4390d95af2a6a6f8397a404a7f",
+      "integrations/dlss5/templates/Launch-Hugo-DLSS5.cmd": "5fada61212ecb0692877623290c3ab78c123c825489f20716c515a5f4cecc0ce",
+      "integrations/dlss5/templates/Launch-Hugo-DLSS5.ps1": "ff2c3fa3ebe7e499d8b88900d0a89db189aec042b1d23377e481f0678b374ef8",
+      "integrations/dlss5/templates/Launch-Hugo.cmd": "7fb770394307930b8adf13dbc08b15520bc15871f891d2bad1507e8b4d808e5f",
+      "integrations/dlss5/templates/Launch-Hugo.ps1": "f45f05db4132b2add51e1308c70465158735fe03e4069d4d17d33cda04a33b88",
+      "integrations/dlss5/templates/ReShade.ini": "1ea71e53943a64af701d206797acad0fd5e4d5b475bf9050b993827534b15b97",
+      "integrations/dlss5/templates/ReShadePreset_DLSS5.ini": "7cd271569bb609b6550e7cf527827b1ffa4be5afef4e130e6db361c5ccd44a4e",
+      "integrations/dlss5/templates/Uninstall-Hugo-DLSS5.ps1": "343bde88ab9bb3c11dbdd78252247830921704b8684b51ab0e6493b68d8aa487",
+      "integrations/dlss5/templates/Verify-Hugo-DLSS5.cmd": "3acee356b5fa1e597b8ff6d4a77865693d81a0c8bf37d13aa5d3c0f61855dc64",
+      "integrations/dlss5/templates/Verify-Hugo-DLSS5.ps1": "fddfc0401ef393d2ff07a6a9fe8f949a4ec3b4e23bc92fd720ff41657431284d"
+    }
+  }
 }

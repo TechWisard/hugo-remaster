@@ -5,12 +5,14 @@ extends RefCounted
 const SCHEMA: int = 2
 const DEFAULT_PATH: String = "user://campaign_v2.json"
 const MAX_BYTES: int = 4 * 1024 * 1024
+const GraphicsScript = preload("res://scripts/native_graphics_settings.gd")
 
 var path: String = DEFAULT_PATH
 var level_id: String = ""
 var completed_levels: Dictionary = {}
 var runs: Dictionary = {}
-var settings: Dictionary = {"music_volume": 0.65, "effects_volume": 0.85, "fullscreen": false, "new_game_difficulty": 1}
+var settings: Dictionary = {"music_volume": 0.65, "effects_volume": 0.85, "fullscreen": false,
+	"new_game_difficulty": 1, "graphics": GraphicsScript.defaults()}
 var difficulty: int = 1
 var total_lives: int = 4
 var qualified_levels: Dictionary = {}
@@ -44,6 +46,11 @@ func read_save(known_level_ids: Array[String]) -> bool:
 			settings[key] = clampf(float(value), 0.0, 1.0)
 	settings["fullscreen"] = options.get("fullscreen", false) == true
 	settings["new_game_difficulty"] = _integer(options.get("new_game_difficulty"), 1, 0, 2)
+	settings["graphics"] = GraphicsScript.sanitize(options.get("graphics", {}))
+	var old_graphics: Variant = options.get("graphics", {})
+	if not old_graphics is Dictionary or not old_graphics.has("display_mode"):
+		settings.graphics.display_mode = "fullscreen" if settings.fullscreen else "windowed"
+	settings["fullscreen"] = settings.graphics.display_mode != "windowed"
 	var native: Dictionary = payload.get("native", {})
 	difficulty = _integer(native.get("difficulty"), 1, 0, 2)
 	total_lives = _integer(native.get("total_lives"), 4, 0, 20)
@@ -167,6 +174,13 @@ func _clean_world(raw: Dictionary) -> Dictionary:
 	for key: String in ["health", "lives", "diamonds"]:
 		if raw.has(key):
 			result[key] = _integer(raw[key], 0, 0, 100000)
+	if raw.has("attack_serial"):
+		result["attack_serial"] = _integer(raw.attack_serial, 0, 0, 2147483647)
+	if raw.get("player_runtime") is Dictionary:
+		var runtime: Dictionary = _player_runtime(raw.player_runtime)
+		if not runtime.is_empty():
+			result["player_runtime"] = runtime
+			result["damage_remaining"] = _number(raw.get("damage_remaining"), 0.0, 0.0, 1.0)
 	for key: String in ["checkpoint_position", "player_position"]:
 		var position: Array = _coordinates(raw.get(key), 3)
 		if not position.is_empty():
@@ -251,6 +265,34 @@ func _camera(raw: Dictionary) -> Dictionary:
 			return {}
 		basis.append(coordinates)
 	return {"native_phase": float(phase), "camera_position": position, "camera_basis": basis}
+
+
+func _player_runtime(raw: Dictionary) -> Dictionary:
+	if raw.get("schema_version") != 1:
+		return {}
+	var velocity: Array = _coordinates(raw.get("velocity"), 3)
+	if velocity.is_empty():
+		return {}
+	for component: float in velocity:
+		if absf(component) > 1000.0:
+			return {}
+	var result: Dictionary = {"schema_version": 1, "velocity": velocity,
+		"grounded": raw.get("grounded", false) == true,
+		"jumping": raw.get("jumping", false) == true,
+		"crouching": raw.get("crouching", false) == true,
+		"jump_origin_y": _number(raw.get("jump_origin_y"), 0.0, -10000000.0, 10000000.0),
+		"jump_action": "jump_moving" if raw.get("jump_action") == "jump_moving" else "jump",
+		"tick_fraction": _number(raw.get("tick_fraction"), 0.0, 0.0, 0.999999),
+		"landing_remaining": _number(raw.get("landing_remaining"), 0.0, 0.0, 0.4),
+		"attack_remaining": _number(raw.get("attack_remaining"), 0.0, 0.0, 2.0),
+		"attack_recovery_remaining": _number(raw.get("attack_recovery_remaining"), 0.0, 0.0, 4.0),
+		"hurt_remaining": _number(raw.get("hurt_remaining"), 0.0, 0.0, 2.0),
+		"invulnerability_remaining": _number(raw.get("invulnerability_remaining"), 0.0, 0.0, 5.0)}
+	var action: Variant = raw.get("visual_action")
+	if action is String and action in ["idle", "walk", "run", "crouch", "crawl", "jump", "jump_moving", "fall", "attack", "hurt", "land"]:
+		result["visual_action"] = action
+		result["visual_phase"] = _number(raw.get("visual_phase"), 0.0, 0.0, 1.0)
+	return result
 
 
 func _coordinates(value: Variant, count: int) -> Array:

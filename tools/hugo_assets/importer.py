@@ -96,6 +96,20 @@ def read_source(source: Path) -> bytes:
     return data
 
 
+def generated_output_files(output: Path) -> list[Path]:
+    """Reject unfinished working files before any generated set is published."""
+    files = []
+    for path in sorted(output.rglob("*")):
+        require(not path.is_symlink(), f"Generated output contains a symlink: {path.relative_to(output)}")
+        if not path.is_file():
+            continue
+        relative = path.relative_to(output)
+        require(not any(part.startswith(".") for part in relative.parts),
+                f"Generated output contains unfinished working files: {relative}")
+        files.append(path)
+    return files
+
+
 def import_original(source: Path, project_root: Path, progress: Callable[[str], None] | None = None,
                     *, include_campaign: bool = True, media_dir: Path | None = None,
                     music_dir: Path | None = None, ffmpeg: str = "ffmpeg") -> dict:
@@ -174,11 +188,10 @@ def import_original(source: Path, project_root: Path, progress: Callable[[str], 
                 media_report = convert_media(media_dir, output, music_dir, ffmpeg, say, cache_dir=generated)
             elif music_dir is not None:
                 raise FormatError("--music-dir requires --media-dir pointing to the local game directory")
-            for path in output.rglob("*"):
-                if path.is_file():
-                    relative = path.relative_to(output).as_posix()
-                    if relative not in files:
-                        files[relative] = {"sha256": sha256(path.read_bytes()), "size_bytes": path.stat().st_size}
+            for path in generated_output_files(output):
+                relative = path.relative_to(output).as_posix()
+                if relative not in files:
+                    files[relative] = {"sha256": sha256(path.read_bytes()), "size_bytes": path.stat().st_size}
             manifest = {
                 "schema_version": 2,
                 "importer_version": __version__,

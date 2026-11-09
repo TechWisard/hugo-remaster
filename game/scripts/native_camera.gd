@@ -6,6 +6,7 @@ extends HugoFollowCamera
 ## vertical transform effect (event 0x22000009) are recovered from static code.
 
 const NativeSamplerScript = preload("res://scripts/original_animation.gd")
+const PRESENTATION_BASE_ASPECT: float = 16.0 / 9.0
 
 var manual_orbit: bool = false
 var native_phase: float = 0.0
@@ -26,6 +27,7 @@ var _all_tracks: Dictionary = {}
 var _effect_track: Dictionary = {}
 var _effect_elapsed: float = 0.0
 var _effect_duration: float = 1.0
+var _projection_viewport: Viewport
 
 
 func _init() -> void:
@@ -62,6 +64,8 @@ func configure(source_camera: Dictionary, native_transform_tracks: Dictionary) -
 
 func _ready() -> void:
 	super._ready()
+	_projection_viewport = get_viewport()
+	_projection_viewport.size_changed.connect(_apply_projection, CONNECT_DEFERRED)
 	_apply_projection()
 	if source_ready:
 		snap_to_target()
@@ -200,15 +204,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_projection_viewport) and _projection_viewport.size_changed.is_connected(_apply_projection):
+		_projection_viewport.size_changed.disconnect(_apply_projection)
+	_projection_viewport = null
 	super._exit_tree()
 
 
 func _apply_projection() -> void:
-	if not is_instance_valid(camera) or _source_projection.is_empty():
+	if not is_instance_valid(camera) or _source_projection.is_empty() or not is_inside_tree():
 		return
 	# KEEP_WIDTH makes Camera3D.fov horizontal. Native D3D uses horizontal FOV.
 	camera.keep_aspect = Camera3D.KEEP_WIDTH
-	camera.fov = clampf(float(_source_projection.get("horizontal_fov_degrees", 50.0)), 1.0, 179.0)
+	var horizontal_fov: float = clampf(float(_source_projection.get("horizontal_fov_degrees", 50.0)), 1.0, 179.0)
+	var size: Vector2 = get_viewport().get_visible_rect().size
+	var aspect: float = size.x / size.y if size.y > 0.0 else PRESENTATION_BASE_ASPECT
+	if aspect > PRESENTATION_BASE_ASPECT:
+		# Presentation only: retain the tested 16:9 vertical coverage on wider
+		# displays, so a normal native jump is not cropped above the frame.
+		# Recovered source FOV, paths, tracker and poses remain unchanged.
+		horizontal_fov = clampf(rad_to_deg(2.0 * atan(tan(deg_to_rad(horizontal_fov) * 0.5)
+			* aspect / PRESENTATION_BASE_ASPECT)), 1.0, 179.0)
+	camera.fov = horizontal_fov
 	camera.near = maxf(0.01, float(_source_projection.get("near", 0.3)))
 	camera.far = maxf(camera.near + 1.0, float(_source_projection.get("far", 500.0)))
 

@@ -6,11 +6,13 @@ const NativeMaterialsScript = preload("res://scripts/native_materials.gd")
 ## Procedural movement is only a fallback for assets without recovered tracks.
 
 const OriginalAnimationScript = preload("res://scripts/original_animation.gd")
+const NativePresentationScript = preload("res://scripts/native_player_presentation.gd")
 
 var using_imported_model: bool = false
 var using_original_animation: bool = false
 var source_bounds: AABB = AABB()
 var original_animation: HugoOriginalAnimation
+var native_presentation: NativePlayerPresentation
 
 var _pose_root: Node3D
 var _normalized_root: Node3D
@@ -95,6 +97,15 @@ func build(path: String, target_height: float, yaw_degrees: float = 0.0) -> void
 		_normalized_root.position = Vector3(-bounds_center.x, -source_bounds.position.y, -bounds_center.z) * height_scale
 		if using_original_animation:
 			original_animation.distance_scale = height_scale
+
+	if bool(get_parent().get("using_native_movement")):
+		native_presentation = NativePresentationScript.new() as NativePlayerPresentation
+		native_presentation.name = "NativePresentation"
+		add_child(native_presentation)
+		var shadow_info: Dictionary = original_animation.manifest.get("hugo_shadow", {}) as Dictionary \
+			if is_instance_valid(original_animation) else {}
+		native_presentation.configure(get_parent() as CharacterBody3D, _pose_root, self,
+			original_animation, shadow_info, manifest_path.get_base_dir())
 
 
 func update_motion(local_velocity: Vector3, grounded: bool, delta: float, action: String = "") -> void:

@@ -21,6 +21,11 @@ func _run() -> void:
 	state.set_run("g017", {"collected": ["diamond", "diamond", 99], "health": 7, "lives": 3,
 		"completed": true, "finish_rewards_applied": true, "death_pending": true,
 		"diamonds": 12, "elapsed": 48.5, "player_position": [4.0, 2.0, -9.0], "player_facing": 1.2,
+		"attack_serial": 17, "damage_remaining": 0.65,
+		"player_runtime": {"schema_version": 1, "velocity": [2.5, 8.0, -1.2],
+			"jumping": true, "jump_origin_y": 1.5, "jump_action": "jump_moving", "tick_fraction": 0.4,
+			"attack_remaining": 0.2, "attack_recovery_remaining": 0.32, "hurt_remaining": 0.1,
+			"invulnerability_remaining": 1.65, "visual_action": "hurt", "visual_phase": 0.35},
 		"actors": {"enemy": {"state": 2, "previous_state": 1, "health": 3, "visual_phase": 2.5,
 			"path_phase": 1.8, "elapsed": 1.5, "removed": false,
 			"transform": [1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 5, 6]}},
@@ -40,6 +45,10 @@ func _run() -> void:
 	_check(run.actors.enemy.state == 2 and is_equal_approx(run.actors.enemy.visual_phase, 2.5), "actor state and phase persist")
 	_check(run.actors.enemy.transform[11] == 6.0, "actor world transform persists")
 	_check(run.player_position == [4.0, 2.0, -9.0], "resume position persists")
+	_check(run.attack_serial == 17 and run.player_runtime.velocity == [2.5, 8.0, -1.2], "attack sequence and momentum persist")
+	_check(run.player_runtime.jumping and is_equal_approx(run.player_runtime.tick_fraction, 0.4) and run.player_runtime.jump_action == "jump_moving", "native airborne integration state persists")
+	_check(is_equal_approx(run.player_runtime.invulnerability_remaining, 1.65) and is_equal_approx(run.damage_remaining, 0.65), "player and world contact cooldowns persist independently")
+	_check(run.player_runtime.visual_action == "hurt" and is_equal_approx(run.player_runtime.visual_phase, 0.35), "live animation action and phase persist")
 	_check(run.checkpoint_state.diamonds == 8 and run.diamonds == 12, "checkpoint and current counters stay distinct")
 	_check(run.checkpoint_state.removed_actors == ["old_enemy"], "native removed-actor snapshot persists")
 	_check(run.scopes.resident_groups == [18, 19] and run.checkpoint_state.resident_groups == [18], "current and checkpoint segment membership stay distinct")
@@ -65,12 +74,24 @@ func _run() -> void:
 	_check(whitelist.level_id.is_empty() and whitelist.runs.is_empty(), "reject progress for unknown chapters")
 	state.set_run("g006", {"player_position": [NAN, 0, 0], "moved": {"bad": [INF, 0, 0]},
 		"actors": {"bad": "not an actor"}, "health": "not a number",
+		"player_runtime": {"schema_version": 1, "velocity": [NAN, 0, 0]},
 		"scopes": {"resident_groups": [18, 18, -2, "junk", 19.5, 19, 20]},
 		"camera": {"native_phase": 0.5, "camera_position": [1, 2, INF], "camera_basis": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}})
 	_check(not state.runs.g006.has("player_position") and state.runs.g006.moved.is_empty(), "reject non-finite coordinates")
 	_check(state.runs.g006.actors.is_empty() and state.runs.g006.health == 0, "sanitize malformed actor and stat fields")
 	_check(state.runs.g006.scopes.resident_groups == [18, 19], "sanitize and bound resident segment membership")
 	_check(not state.runs.g006.has("camera"), "reject non-finite native camera pose")
+	_check(not state.runs.g006.has("player_runtime"), "reject non-finite runtime momentum without invalidating the legacy save")
+	state.set_run("g006", {"player_runtime": {"schema_version": 2, "velocity": [0, 0, 0]}})
+	_check(not state.runs.g006.has("player_runtime"), "ignore an unsupported runtime payload version")
+	state.set_run("g006", {"player_runtime": {"schema_version": 1, "velocity": [0, 0, 0],
+		"tick_fraction": INF, "hurt_remaining": "bad", "invulnerability_remaining": 999,
+		"visual_action": "hurt", "visual_phase": NAN}, "damage_remaining": -5})
+	var sanitized: Dictionary = state.runs.g006
+	_check(sanitized.player_runtime.tick_fraction == 0.0 and sanitized.player_runtime.hurt_remaining == 0.0 and sanitized.player_runtime.visual_phase == 0.0,
+		"malformed runtime clocks use finite defaults")
+	_check(sanitized.player_runtime.invulnerability_remaining == 5.0 and sanitized.damage_remaining == 0.0,
+		"runtime protection windows are bounded")
 	_cleanup()
 	print("SAVE_STATE_TEST checks=", checks, " failures=", JSON.stringify(failures))
 	quit(0 if failures.is_empty() else 1)
