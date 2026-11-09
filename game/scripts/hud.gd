@@ -5,6 +5,9 @@ signal restart_requested
 signal menu_requested
 signal next_requested
 
+const Localizer = preload("res://scripts/native_localization.gd")
+const TextBindings = preload("res://scripts/native_text_bindings.gd")
+
 var counter: Label
 var clock_label: Label
 var message_label: Label
@@ -19,13 +22,29 @@ var menu_button: Button
 var chapter_label: Label
 var health_label: Label
 var footer_label: Label
-var chapter_title: String = "Берег"
-var objective_text: String = "Соберите все алмазы и доберитесь до каменной арки."
+var chapter_title: String = ""
+var objective_text: String = ""
 var campaign_mode: bool = false
 var has_next_chapter: bool = false
 var _toast_remaining: float = 0.0
 var _completed: bool = false
 var _audio: AudioStreamPlayer
+var _text_bindings := TextBindings.new()
+var _chapter_group: int = -1
+var _chapter_number: int = 1
+var _toast_key: String = ""
+var _toast_arguments: Dictionary = {}
+var _modal_mode: String = ""
+var _finish_elapsed: float = 0.0
+var _finish_stats: Dictionary = {}
+var _finale: bool = false
+var _last_progress_current: int = -1
+var _last_progress_total: int = -1
+var _last_progress_second: int = -1
+var _last_vital_current: int = -1
+var _last_vital_maximum: int = -1
+var _last_vital_lives: int = -1
+var _last_vital_mode: int = -1
 
 const INK := Color("142d39")
 const CREAM := Color("fff2ce")
@@ -42,9 +61,9 @@ func _ready() -> void:
 	brand.position = Vector2(32, 26)
 	brand.add_theme_constant_override("separation", 0)
 	screen.add_child(brand)
-	brand.add_child(_label("КУЗЯ", 34, GOLD))
-	brand.add_child(_label("АЛМАЗНАЯ ЛИХОРАДКА", 12, CREAM))
-	chapter_label = _label("01  /  БЕРЕГ", 16, CREAM)
+	brand.add_child(_label("brand.name", 34, GOLD))
+	brand.add_child(_label("brand.subtitle", 12, CREAM))
+	chapter_label = _label("", 16, CREAM)
 	chapter_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	chapter_label.position = Vector2(-240, 34)
 	chapter_label.custom_minimum_size.x = 480
@@ -75,7 +94,7 @@ func _ready() -> void:
 	progress_bar.add_theme_stylebox_override("background", _flat(Color(0.1, 0.2, 0.24, 0.8), 2))
 	progress_bar.add_theme_stylebox_override("fill", _flat(GOLD, 2))
 	stats_stack.add_child(progress_bar)
-	footer_label = _label("WASD / стрелки — движение    ПРОБЕЛ — прыжок    SHIFT — бег    ПКМ — камера    ESC — пауза", 13, CREAM)
+	footer_label = _label("controls.demo", 13, CREAM)
 	footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	footer_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	footer_label.offset_top = -34
@@ -94,6 +113,8 @@ func _ready() -> void:
 	_audio.volume_db = -15.0
 	_audio.stream = _pickup_sound()
 	add_child(_audio)
+	Localizer.events().language_changed.connect(_refresh_language)
+	_refresh_language(Localizer.get_text_locale())
 
 
 func _process(delta: float) -> void:
@@ -110,34 +131,64 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func set_progress(current: int, total: int, elapsed: float) -> void:
-	counter.text = "◆  %d / %d" % [current, total]
-	clock_label.text = "%02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
-	progress_bar.max_value = maxi(total, 1)
-	progress_bar.value = current
-	progress_bar.visible = total > 0
+	# Native simulation can call this at60Hz. Only changed values reach Controls.
+	if current != _last_progress_current or total != _last_progress_total:
+		_last_progress_current = current
+		_last_progress_total = total
+		counter.text = "◆  %d / %d" % [current, total]
+		progress_bar.max_value = maxi(total, 1)
+		progress_bar.value = current
+		progress_bar.visible = total > 0
+	var second: int = int(elapsed)
+	if second != _last_progress_second:
+		_last_progress_second = second
+		clock_label.text = "%02d:%02d" % [second / 60, second % 60]
 
 
-func set_chapter(title: String, number: int, has_next: bool) -> void:
+func set_chapter(title: String, number: int, has_next: bool, group: int = -1) -> void:
 	campaign_mode = true
 	chapter_title = title
+	_chapter_number = number
+	_chapter_group = group
 	has_next_chapter = has_next
-	chapter_label.text = "%02d  /  %s" % [number, title.to_upper()]
-	objective_text = "Доберитесь до выхода из главы. Исследуйте маршрут и собирайте предметы."
-	footer_label.text = "WASD — движение   ПРОБЕЛ — прыжок   E / ЛКМ — атака   CTRL — ползти   ПКМ — камера   ESC — пауза"
 	menu_button.visible = true
+	_refresh_language(Localizer.get_text_locale())
 
 
 func set_health(current: int, maximum: int) -> void:
+	if _last_vital_mode == 0 and current == _last_vital_current and maximum == _last_vital_maximum:
+		return
+	_last_vital_mode = 0
+	_last_vital_current = current
+	_last_vital_maximum = maximum
 	health_label.visible = true
 	health_label.text = "♥ ".repeat(maxi(current, 0)) + "♡ ".repeat(maxi(maximum - current, 0))
 
 
 func set_vitals(current: int, maximum: int, lives: int) -> void:
+	if _last_vital_mode == 1 and current == _last_vital_current and maximum == _last_vital_maximum and lives == _last_vital_lives:
+		return
+	_last_vital_mode = 1
+	_last_vital_current = current
+	_last_vital_maximum = maximum
+	_last_vital_lives = lives
 	health_label.visible = true
 	health_label.text = "♥ %d / %d    × %d" % [current, maximum, lives]
 
 
 func toast(message: String, seconds: float = 3.5) -> void:
+	_toast_key = ""
+	_toast_arguments = {}
+	_show_toast(message, seconds)
+
+
+func toast_key(key: String, arguments: Dictionary = {}, seconds: float = 3.5) -> void:
+	_toast_key = key
+	_toast_arguments = arguments.duplicate()
+	_show_toast(Localizer.text(key, arguments), seconds)
+
+
+func _show_toast(message: String, seconds: float) -> void:
 	message_label.text = message
 	message_label.modulate.a = 1.0
 	_toast_remaining = seconds
@@ -154,8 +205,8 @@ func toggle_pause() -> void:
 	var will_pause: bool = not get_tree().paused
 	get_tree().paused = will_pause
 	modal.visible = will_pause
-	modal_title.text = "Пауза"
-	modal_detail.text = objective_text + "\nR — вернуться к последней контрольной точке."
+	_modal_mode = "pause"
+	_refresh_modal_text()
 	continue_button.visible = true
 	next_button.visible = false
 	if will_pause:
@@ -166,8 +217,9 @@ func toggle_pause() -> void:
 func finish(elapsed: float) -> void:
 	_completed = true
 	modal.visible = true
-	modal_title.text = "Глава пройдена" if campaign_mode else "Берег пройден"
-	modal_detail.text = (chapter_title if campaign_mode else "Все алмазы собраны.") + "\nВремя: %02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
+	_modal_mode = "finish"
+	_finish_elapsed = elapsed
+	_refresh_modal_text()
 	continue_button.visible = false
 	next_button.visible = campaign_mode and has_next_chapter
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -179,6 +231,10 @@ func finish(elapsed: float) -> void:
 
 func reset_hud() -> void:
 	_completed = false
+	_modal_mode = ""
+	_finish_stats = {}
+	_finale = false
+	_text_bindings.bind_property(next_button, "text", "hud.next")
 	get_tree().paused = false
 	modal.hide()
 
@@ -186,12 +242,56 @@ func reset_hud() -> void:
 func game_over() -> void:
 	_completed = true
 	modal.show()
-	modal_title.text = "Игра окончена"
-	modal_detail.text = "Жизни закончились. Можно начать эту главу заново."
+	_modal_mode = "game_over"
+	_refresh_modal_text()
 	continue_button.hide()
 	next_button.hide()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	restart_button.grab_focus()
+
+
+func set_finish_stats(diamonds: int, total: int, visited: int, checkpoints: int) -> void:
+	_finish_stats = {"diamonds": diamonds, "total": total, "visited": visited, "checkpoints": checkpoints}
+	_refresh_modal_text()
+
+
+func set_finale(enabled: bool) -> void:
+	_finale = enabled
+	_text_bindings.bind_property(next_button, "text", "hud.finale" if enabled else "hud.next")
+
+
+func _refresh_language(_locale: String) -> void:
+	_text_bindings.refresh()
+	if campaign_mode:
+		if _chapter_group >= 0:
+			chapter_title = Localizer.chapter_title(_chapter_group, chapter_title)
+	else:
+		chapter_title = Localizer.text("demo.chapter")
+	chapter_label.text = "%02d  /  %s" % [_chapter_number, chapter_title.to_upper()]
+	objective_text = Localizer.text("objective.chapter" if campaign_mode else "objective.demo")
+	_text_bindings.bind_property(footer_label, "text", "controls.chapter" if campaign_mode else "controls.demo")
+	if not _toast_key.is_empty():
+		# Preserve lifetime and fade; a language change is not a new gameplay event.
+		message_label.text = Localizer.text(_toast_key, _toast_arguments)
+	_refresh_modal_text()
+
+
+func _refresh_modal_text() -> void:
+	if modal_title == null:
+		return
+	match _modal_mode:
+		"pause":
+			modal_title.text = Localizer.text("pause.title")
+			modal_detail.text = objective_text + "\n" + Localizer.text("pause.restart_hint")
+		"finish":
+			modal_title.text = Localizer.text("finish.chapter" if campaign_mode else "finish.demo")
+			var time: String = "%02d:%02d" % [int(_finish_elapsed) / 60, int(_finish_elapsed) % 60]
+			modal_detail.text = (chapter_title if campaign_mode else Localizer.text("finish.all_diamonds")) + "\n" + Localizer.text("finish.time", {"time": time})
+			if not _finish_stats.is_empty():
+				modal_detail.text += "\n" + Localizer.text("finish.stats", _finish_stats)
+		"game_over":
+			modal_title.text = Localizer.text("game_over.title")
+			modal_detail.text = Localizer.text("game_over.body")
 
 
 func _build_modal(screen: Control) -> void:
@@ -204,7 +304,7 @@ func _build_modal(screen: Control) -> void:
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 16)
 	modal.add_child(stack)
-	modal_title = _label("Пауза", 32, GOLD)
+	modal_title = _label("pause.title", 32, GOLD)
 	modal_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stack.add_child(modal_title)
 	modal_detail = _label("", 16, CREAM)
@@ -212,21 +312,21 @@ func _build_modal(screen: Control) -> void:
 	modal_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	modal_detail.custom_minimum_size.y = 58
 	stack.add_child(modal_detail)
-	continue_button = _button("Продолжить")
+	continue_button = _button("menu.continue")
 	continue_button.pressed.connect(toggle_pause)
 	stack.add_child(continue_button)
-	next_button = _button("Следующая глава")
+	next_button = _button("hud.next")
 	next_button.pressed.connect(func() -> void: next_requested.emit())
 	next_button.visible = false
 	stack.add_child(next_button)
-	restart_button = _button("Начать заново")
+	restart_button = _button("hud.restart")
 	restart_button.pressed.connect(func() -> void: restart_requested.emit())
 	stack.add_child(restart_button)
-	menu_button = _button("В главное меню")
+	menu_button = _button("hud.main_menu")
 	menu_button.pressed.connect(func() -> void: menu_requested.emit())
 	menu_button.visible = false
 	stack.add_child(menu_button)
-	var quit_button := _button("Выйти")
+	var quit_button := _button("menu.quit")
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	stack.add_child(quit_button)
 	modal.hide()
@@ -234,7 +334,7 @@ func _build_modal(screen: Control) -> void:
 
 func _button(text: String) -> Button:
 	var button := Button.new()
-	button.text = text
+	_text_bindings.bind_property(button, "text", text)
 	button.custom_minimum_size.y = 40
 	button.add_theme_font_size_override("font_size", 17)
 	button.add_theme_color_override("font_color", CREAM)
@@ -247,7 +347,10 @@ func _button(text: String) -> Button:
 
 func _label(text: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
-	label.text = text
+	if Localizer.has_key(text):
+		_text_bindings.bind_property(label, "text", text)
+	else:
+		label.text = text
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_shadow_color", Color(0.02, 0.08, 0.1, 0.65))

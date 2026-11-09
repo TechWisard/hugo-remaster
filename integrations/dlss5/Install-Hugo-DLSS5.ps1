@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$GameExe,
     [Parameter(Mandatory = $true)][string]$Destination,
     [string]$PckFile = '',
+    [string]$LanguagePackFile = '',
     [string]$PackDirectory = $PSScriptRoot
 )
 $ErrorActionPreference = 'Stop'
@@ -20,6 +21,14 @@ if (-not $embedded) {
     if (-not $PckFile) { $PckFile = [IO.Path]::ChangeExtension($gamePath, '.pck') }
     $PckFile = (Resolve-Path -LiteralPath $PckFile).Path
     if (-not (Test-HugoPck -Path $PckFile)) { throw 'A Godot GDPC resource pack is required.' }
+}
+if (-not $LanguagePackFile) {
+    $adjacentLanguages = Join-Path (Split-Path -Parent $gamePath) 'Hugo_Languages.pck'
+    if (Test-Path -LiteralPath $adjacentLanguages -PathType Leaf) { $LanguagePackFile = $adjacentLanguages }
+}
+if ($LanguagePackFile) {
+    $LanguagePackFile = (Resolve-Path -LiteralPath $LanguagePackFile).Path
+    if (-not (Test-HugoPck -Path $LanguagePackFile)) { throw 'The optional language pack must be a Godot GDPC pack.' }
 }
 $destinationPath = [IO.Path]::GetFullPath($Destination)
 if (Test-Path -LiteralPath $destinationPath) { throw 'Destination must not exist. Choose a new isolated directory.' }
@@ -44,6 +53,12 @@ try {
     foreach ($relative in @($gameFiles)) {
         Copy-Item -LiteralPath (Join-Path $stage $relative) -Destination (Join-Path $clean $relative)
         $gameFiles += 'clean/' + $relative
+    }
+    # One shared language pack is enough. The clean executable resolves this
+    # fixed name in its parent directory; no DLL or other proxy is copied there.
+    if ($LanguagePackFile) {
+        Copy-Item -LiteralPath $LanguagePackFile -Destination (Join-Path $stage 'Hugo_Languages.pck')
+        $gameFiles += 'Hugo_Languages.pck'
     }
     Copy-Item -LiteralPath (Join-Path $PackDirectory 'pack-manifest.json') -Destination (Join-Path $stage 'dlss5-pack-manifest.json')
     $owned = @($pack.files)

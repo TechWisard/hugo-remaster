@@ -46,7 +46,7 @@ func _ready() -> void:
 	hud.restart_requested.connect(restart_run)
 	player.respawned.connect(_on_respawn)
 	hud.set_progress(0, total_diamonds, 0.0)
-	hud.toast("Соберите 12 алмазов и доберитесь до каменной арки", 6.0)
+	hud.toast_key("toast.demo_start", {}, 6.0)
 	_capture_if_requested.call_deferred()
 
 
@@ -75,19 +75,19 @@ func restart_run() -> void:
 	hud.reset_hud()
 	player.respawn()
 	hud.set_progress(0, total_diamonds, 0.0)
-	hud.toast("Соберите все алмазы и найдите выход", 4.0)
+	hud.toast_key("toast.collect_all", {}, 4.0)
 
 
 func _on_diamond_collected(_diamond: DiamondPickup) -> void:
 	collected_count += 1
 	hud.play_pickup()
 	if collected_count == total_diamonds:
-		hud.toast("Все алмазы собраны. К каменной арке!", 5.0)
+		hud.toast_key("toast.all_collected", {}, 5.0)
 
 
 func _on_respawn() -> void:
 	if is_instance_valid(hud):
-		hud.toast("Возвращение к контрольной точке" if checkpoint_active else "Возвращение на берег", 2.5)
+		hud.toast_key("toast.checkpoint_return" if checkpoint_active else "toast.beach_return", {}, 2.5)
 
 
 func _on_checkpoint_entered(body: Node3D) -> void:
@@ -96,14 +96,14 @@ func _on_checkpoint_entered(body: Node3D) -> void:
 	checkpoint_active = true
 	player.set_checkpoint(Vector3(3, 1.05, -10.6))
 	_checkpoint_beacon.material_override = _material(Color("ffd980"), true)
-	hud.toast("Контрольная точка сохранена", 3.0)
+	hud.toast_key("toast.checkpoint_saved", {}, 3.0)
 
 
 func _on_finish_entered(body: Node3D) -> void:
 	if body != player or completed:
 		return
 	if collected_count < total_diamonds:
-		hud.toast("Осталось собрать алмазов: %d" % (total_diamonds - collected_count))
+		hud.toast_key("toast.diamonds_remaining", {"count": total_diamonds - collected_count})
 		return
 	completed = true
 	player.controls_enabled = false

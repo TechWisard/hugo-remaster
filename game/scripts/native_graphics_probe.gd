@@ -60,7 +60,7 @@ func _run() -> void:
 	var started_usec: int = Time.get_ticks_usec()
 	var window: Window = get_tree().root
 	if not report.headless:
-		window.title = "Кузя — проверка графики"
+		window.title = "Hugo · GPU"
 		window.mode = Window.MODE_WINDOWED
 		window.size = Vector2i(maxi(window.size.x, MIN_SIZE.x), maxi(window.size.y, MIN_SIZE.y))
 	# Probe resolution is diagnostic and must never restore or apply game display preferences.

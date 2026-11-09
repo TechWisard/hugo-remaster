@@ -8,6 +8,8 @@ signal action_finished(action: String)
 const SOURCE_AXES: Basis = Basis(Vector3.RIGHT, Vector3(0.0, 0.0, -1.0), Vector3.UP)
 const NATIVE_TAU: float = 6.2831854820251465
 const NativeMaterialsScript = preload("res://scripts/native_materials.gd")
+const SceneIndexScript = preload("res://scripts/native_scene_index.gd")
+const ResourceDataScript = preload("res://scripts/native_resource_data.gd")
 
 var current_action: String = ""
 var current_clip: String = ""
@@ -28,7 +30,7 @@ var _finished: bool = false
 func load_manifest(path: String, material_fix: Callable = Callable()) -> bool:
 	if not FileAccess.file_exists(path):
 		return false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var parsed: Variant = ResourceDataScript.read(path)
 	if not parsed is Dictionary:
 		return false
 	manifest = parsed as Dictionary
@@ -179,9 +181,10 @@ func _load_clip(clip_id: String) -> bool:
 		_material_fix.call(instance)
 	var mesh_bindings: Array[Dictionary] = []
 	var rows: Array = data.get("nodes", []) as Array
+	var scene_index: Dictionary = SceneIndexScript.descendants(instance)
 	for value: Variant in rows:
 		var row: Dictionary = value as Dictionary
-		var mesh_node: MeshInstance3D = instance.find_child(str(row.get("node", "")), true, false) as MeshInstance3D
+		var mesh_node: MeshInstance3D = scene_index.get(str(row.get("node", ""))) as MeshInstance3D
 		if mesh_node == null or mesh_node.mesh == null:
 			remove_child(instance)
 			instance.free()

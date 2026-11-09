@@ -32,6 +32,7 @@ func _run() -> void:
 	var msaa: OptionButton = game.menu.find_child("GraphicsMSAA", true, false) as OptionButton
 	var scale: OptionButton = game.menu.find_child("GraphicsRenderScale", true, false) as OptionButton
 	var textures: OptionButton = game.menu.find_child("GraphicsTextures", true, false) as OptionButton
+	var preset: OptionButton = game.menu.find_child("GraphicsPreset", true, false) as OptionButton
 	var vsync: CheckButton = game.menu.find_child("GraphicsVSync", true, false) as CheckButton
 	_check(msaa != null and scale != null and textures != null and vsync != null, "real settings menu exposes the supported graphics controls")
 	_check(game.menu._options_scroll.visible, "graphics controls live in the visible scrollable options panel")
@@ -44,22 +45,35 @@ func _run() -> void:
 		game.state.settings.graphics.render_scale = 2.0
 		game._apply_settings()
 		_check(root.msaa_3d == profile_msaa and is_equal_approx(root.scaling_3d_scale, 1.0), "external profile applies its native-resolution resolved input")
-		_check(msaa.disabled and scale.disabled and msaa.selected == profile_selection and scale.selected == 0,
+		_check(msaa.disabled and scale.disabled and msaa.selected == profile_selection and scale.selected == _find_value(scale, 1.0),
 			"profile menu shows the effective AA and resolution without claiming neural activation")
+		_check(preset != null and preset.disabled, "an external launch profile locks whole presets as well as AA/scale")
 		_check(game.state.settings.graphics.msaa == 8 and game.state.settings.graphics.render_scale == 2.0,
 			"external launch profile preserves the ordinary saved quality preferences")
 	else:
 		_check(not msaa.disabled and not scale.disabled, "ordinary launch leaves graphics choices editable")
+		_check(preset != null and not preset.disabled and preset.is_item_disabled(3), "ordinary presets are explicit choices and Custom is a status")
+		var output_size: Vector2i = root.size
+		var ui_size: Vector2i = root.content_scale_size
+		for expected: Dictionary in [{"msaa": Viewport.MSAA_4X, "scale": 1.0, "index": 0},
+				{"msaa": Viewport.MSAA_2X, "scale": 1.0, "index": 1}, {"msaa": Viewport.MSAA_DISABLED, "scale": 0.75, "index": 2}]:
+			_select(preset, int(expected.index))
+			await process_frame
+			_check(root.msaa_3d == expected.msaa and is_equal_approx(root.scaling_3d_scale, expected.scale),
+				"quality preset %d reaches the actual Viewport" % expected.index)
+			_check(root.size == output_size and root.content_scale_size == ui_size and game.state.settings.text_locale == "ru" and game.state.settings.voice_locale == "ru",
+				"quality preset %d preserves output/UI dimensions and independent languages" % expected.index)
 		for index: int in range(4):
 			_select(msaa, index)
 			await process_frame
 			_check(root.msaa_3d == [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][index],
 				"menu choice %d applies the actual Viewport MSAA mode" % index)
-		for index: int in range(3):
+		for wanted: float in [0.5, 0.67, 0.75, 1.0, 1.5, 2.0]:
+			var index: int = _find_value(scale, wanted)
 			_select(scale, index)
 			await process_frame
-			_check(is_equal_approx(root.scaling_3d_scale, [1.0, 1.5, 2.0][index]) and root.scaling_3d_mode == Viewport.SCALING_3D_MODE_BILINEAR,
-				"menu choice %d applies actual bilinear supersampling scale" % index)
+			_check(is_equal_approx(root.scaling_3d_scale, wanted) and root.scaling_3d_mode == Viewport.SCALING_3D_MODE_BILINEAR,
+				"menu choice %d applies the actual bilinear 3D render scale" % index)
 	vsync.button_pressed = false
 	await process_frame
 	_check(not game.state.settings.graphics.vsync, "VSync toggle reaches persisted settings")
@@ -106,6 +120,13 @@ func _run() -> void:
 	_cleanup()
 	print("GRAPHICS_SETTINGS checks=", checks, " profile=", external_profile, " failures=", JSON.stringify(failures))
 	quit(0 if failures.is_empty() else 1)
+
+
+func _find_value(control: OptionButton, wanted: Variant) -> int:
+	for index: int in range(control.item_count):
+		if control.get_item_metadata(index) == wanted:
+			return index
+	return -1
 
 
 func _select(control: OptionButton, index: int) -> void:

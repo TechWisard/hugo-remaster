@@ -25,6 +25,14 @@ var _bounds := AABB()
 var _category_union: int = 0
 var _receive_union: int = 0
 var _space_key: int = 0
+var _action_has_animated_boxes: Dictionary = {}
+var _pose_cached: bool = false
+var _cached_action: int = -1
+var _cached_phase: float = 0.0
+var _cached_transform := Transform3D.IDENTITY
+var _cached_physical_flags: int = 0
+var refreshed_poses: int = 0
+var reused_poses: int = 0
 static var _spaces: Dictionary = {}
 
 
@@ -38,6 +46,7 @@ func _ready() -> void:
 	(_spaces[_space_key] as Array).append(self)
 	for action: Dictionary in source.get("actions", []):
 		var nodes: Array[Dictionary] = []
+		var animated: bool = false
 		for item: Dictionary in action.get("collision_nodes", []):
 			var bounds: Variant = item.get("bounds")
 			if not bounds is Array or bounds.size() != 2:
@@ -52,6 +61,8 @@ func _ready() -> void:
 				var track: Dictionary = tracks.get(key, {})
 				if not track.is_empty():
 					chain.append(track)
+					animated = animated or (track.get("translation_keys", []) as Array).size() > 1 \
+						or (track.get("rotation_keys", []) as Array).size() > 1
 			nodes.append({"node_index": int(item.get("node_index", 0)),
 				"source_node_offset": int(item.get("source_node_offset", 0)),
 				"graph_record": item.get("graph_record", {}),
@@ -69,6 +80,7 @@ func _ready() -> void:
 		if not first_node.is_empty():
 			first_node["physical_slot"] = true
 		_actions[int(action.index)] = nodes
+		_action_has_animated_boxes[int(action.index)] = animated
 	refresh()
 
 
@@ -103,14 +115,11 @@ func _physics_process(_delta: float) -> void:
 
 
 func refresh() -> void:
-	active_boxes.clear()
-	_category_union = 0
-	_receive_union = 0
-	if is_instance_valid(physical_body):
-		physical_body.collision_layer = 0
 	if not enabled or sampler == null:
+		invalidate_pose()
 		return
 	if is_instance_valid(receiver) and receiver.has_method("is_logic_enabled") and not receiver.call("is_logic_enabled"):
+		invalidate_pose()
 		return
 	var base := Transform3D.IDENTITY
 	if is_instance_valid(player):
@@ -119,12 +128,24 @@ func refresh() -> void:
 		base = player.call("get_native_visual_transform") as Transform3D
 	elif is_instance_valid(owner_visual):
 		if not owner_visual.is_visible_in_tree():
+			invalidate_pose()
 			return
 		active_action = motion.active_action if is_instance_valid(motion) else 0
 		sampled_phase = motion.sampled_visual_phase if is_instance_valid(motion) else 0.0
 		base = owner_visual.global_transform
 	else:
+		invalidate_pose()
 		return
+	var physical_flags: int = int(receiver.get("physical_flags")) if is_instance_valid(receiver) and is_instance_valid(owner_visual) else 0
+	var relevant_phase: float = sampled_phase if bool(_action_has_animated_boxes.get(active_action, false)) else 0.0
+	# Source graphs are immutable after binding. A fixed action/transform and
+	# fixed authored box tracks produce identical OBBs, regardless of render phase.
+	# State transitions still call refresh immediately, before subsequent pairs.
+	if _pose_cached and active_action == _cached_action and relevant_phase == _cached_phase \
+		and base == _cached_transform and physical_flags == _cached_physical_flags:
+		reused_poses += 1
+		return
+	invalidate_pose()
 	for item: Dictionary in _actions.get(active_action, []):
 		var pose := Transform3D.IDENTITY
 		for track: Dictionary in item.chain:
@@ -145,6 +166,22 @@ func refresh() -> void:
 		_receive_union |= int(item.receive_mask)
 		_bounds = box.aabb if active_boxes.size() == 1 else _bounds.merge(box.aabb)
 	_sync_physical_body()
+	_cached_action = active_action
+	_cached_phase = relevant_phase
+	_cached_transform = base
+	_cached_physical_flags = physical_flags
+	_pose_cached = true
+	refreshed_poses += 1
+
+
+func invalidate_pose() -> void:
+	## Also available to diagnostic tools which deliberately replace bound tracks.
+	_pose_cached = false
+	active_boxes.clear()
+	_category_union = 0
+	_receive_union = 0
+	if is_instance_valid(physical_body) and physical_body.collision_layer != 0:
+		physical_body.collision_layer = 0
 
 
 func _is_owner_graph(reference: Dictionary) -> bool:
@@ -172,9 +209,13 @@ func _sync_physical_body() -> void:
 			_physical_shape = CollisionShape3D.new()
 			_physical_shape.shape = BoxShape3D.new()
 			physical_body.add_child(_physical_shape)
-		(_physical_shape.shape as BoxShape3D).size = (box.half_extents as Vector3) * 2.0
-		_physical_shape.position = box.local_center
-		physical_body.global_transform = box.transform
+		var size: Vector3 = (box.half_extents as Vector3) * 2.0
+		if (_physical_shape.shape as BoxShape3D).size != size:
+			(_physical_shape.shape as BoxShape3D).size = size
+		if _physical_shape.position != box.local_center:
+			_physical_shape.position = box.local_center
+		if physical_body.global_transform != box.transform:
+			physical_body.global_transform = box.transform
 		physical_body.collision_layer = 1
 		return
 

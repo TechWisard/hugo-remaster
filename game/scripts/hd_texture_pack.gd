@@ -7,6 +7,7 @@ const MANIFEST: String = "res://assets/hd/texture_pack.json"
 static var _loaded: bool = false
 static var _enabled: bool = true
 static var _entries: Dictionary = {}
+static var _source_sizes: Dictionary = {}
 static var _source_keys: Dictionary = {}
 static var _replacements: Dictionary = {}
 static var _bindings: Dictionary = {}
@@ -30,6 +31,13 @@ static func set_enabled(value: bool) -> void:
 			_bindings.erase(id)
 			continue
 		_apply(material, binding)
+	if not _enabled:
+		# Original/performance mode must also release unused HD GPU allocations.
+		# Weak entries still reuse a texture if another live owner holds it.
+		for key: String in _replacements:
+			var texture: Texture2D = _cached_replacement(key)
+			if texture != null:
+				_replacements[key] = weakref(texture)
 
 
 static func get_status() -> Dictionary:
@@ -68,7 +76,10 @@ static func resolve(source: Texture2D) -> Texture2D:
 	if not _entries.has(key):
 		return source
 	if _replacements.has(key):
-		return _replacements[key] as Texture2D
+		var cached: Texture2D = _cached_replacement(key)
+		if cached != null:
+			_replacements[key] = cached
+			return cached
 	var path: String = MANIFEST.get_base_dir().path_join(str(_entries[key].path))
 	var replacement: Texture2D = ResourceLoader.load(path, "Texture2D") as Texture2D
 	if replacement == null:
@@ -86,6 +97,13 @@ static func resolve(source: Texture2D) -> Texture2D:
 	return replacement
 
 
+static func _cached_replacement(key: String) -> Texture2D:
+	var value: Variant = _replacements.get(key)
+	if value is WeakRef:
+		return (value as WeakRef).get_ref() as Texture2D
+	return value as Texture2D
+
+
 static func _apply(material: Material, binding: Dictionary) -> void:
 	var original: Texture2D = binding.source as Texture2D
 	var texture: Texture2D = resolve(original)
@@ -100,6 +118,11 @@ static func _apply(material: Material, binding: Dictionary) -> void:
 
 
 static func _source_key(source: Texture2D) -> String:
+	# Dimensions are part of the verified pixel key. A noncandidate texture
+	# never needs a GPU readback, decompression or pixel hash.
+	var dimensions: String = "%dx%d" % [source.get_width(), source.get_height()]
+	if not _source_sizes.has(dimensions):
+		return ""
 	var id: int = source.get_instance_id()
 	if _source_keys.has(id):
 		var cached: Dictionary = _source_keys[id]
@@ -171,3 +194,4 @@ static func _load() -> void:
 			continue
 		if ResourceLoader.exists(MANIFEST.get_base_dir().path_join(path), "Texture2D"):
 			_entries[key] = entry.duplicate(true)
+			_source_sizes[key.get_slice(":", 0)] = true

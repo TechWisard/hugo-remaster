@@ -1,6 +1,7 @@
 class_name HugoNativeMaterials
 extends RefCounted
 const TexturePackScript = preload("res://scripts/hd_texture_pack.gd")
+const ResourceDataScript = preload("res://scripts/native_resource_data.gd")
 ## Ordinary mesh blend selectors are different from CPSXSprite's mode enum.
 ## The exporter keeps the selector in the material name because glTF material
 ## extras are not reliably exposed by the Godot importer.
@@ -63,15 +64,21 @@ static func apply_recursive(node: Node) -> void:
 			var original: BaseMaterial3D = instance.get_active_material(surface) as BaseMaterial3D
 			if original == null:
 				continue
-			var arrays: Array = instance.mesh.surface_get_arrays(surface)
-			var has_colors: bool = false
-			if arrays[Mesh.ARRAY_COLOR] is PackedColorArray:
-				var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
-				has_colors = not colors.is_empty()
+			# The format already records COLOR_0. Reading every vertex/UV/morph
+			# array here needlessly copies mesh data during every scene load.
+			var has_colors: bool = surface_has_vertex_colors(instance.mesh, surface)
 			instance.set_surface_override_material(surface, prepare_material(original, has_colors))
 		prepare_animation_instance(instance)
 	for child: Node in node.get_children():
 		apply_recursive(child)
+
+
+static func surface_has_vertex_colors(mesh: Mesh, surface: int) -> bool:
+	if mesh is ArrayMesh:
+		return ((mesh as ArrayMesh).surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR) != 0
+	# PrimitiveMesh exposes arrays but not ArrayMesh.surface_get_format.
+	var arrays: Array = mesh.surface_get_arrays(surface)
+	return arrays[Mesh.ARRAY_COLOR] is PackedColorArray and not arrays[Mesh.ARRAY_COLOR].is_empty()
 
 
 static func load_animation_manifest(path: String = DEFAULT_MANIFEST) -> bool:
@@ -80,7 +87,7 @@ static func load_animation_manifest(path: String = DEFAULT_MANIFEST) -> bool:
 	_manifest_attempted = true
 	if not FileAccess.file_exists(path):
 		return false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var parsed: Variant = ResourceDataScript.read(path)
 	if not parsed is Dictionary or not (parsed as Dictionary).get("materials") is Dictionary:
 		return false
 	_animation_data = (parsed as Dictionary)["materials"] as Dictionary

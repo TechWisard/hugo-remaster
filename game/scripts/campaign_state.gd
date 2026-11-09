@@ -6,22 +6,28 @@ const SCHEMA: int = 2
 const DEFAULT_PATH: String = "user://campaign_v2.json"
 const MAX_BYTES: int = 4 * 1024 * 1024
 const GraphicsScript = preload("res://scripts/native_graphics_settings.gd")
+const Localizer = preload("res://scripts/native_localization.gd")
 
 var path: String = DEFAULT_PATH
 var level_id: String = ""
 var completed_levels: Dictionary = {}
 var runs: Dictionary = {}
 var settings: Dictionary = {"music_volume": 0.65, "effects_volume": 0.85, "fullscreen": false,
-	"new_game_difficulty": 1, "graphics": GraphicsScript.defaults()}
+	"new_game_difficulty": 1, "graphics": GraphicsScript.defaults(),
+	"text_locale": "ru", "voice_locale": "ru"}
 var difficulty: int = 1
 var total_lives: int = 4
 var qualified_levels: Dictionary = {}
 var last_error: String = ""
+var last_error_key: String = ""
+var last_error_arguments: Dictionary = {}
 var recovered_backup: bool = false
 
 
 func read_save(known_level_ids: Array[String]) -> bool:
 	last_error = ""
+	last_error_key = ""
+	last_error_arguments = {}
 	recovered_backup = false
 	var payload: Dictionary = _read_document(path)
 	if payload.is_empty():
@@ -46,6 +52,8 @@ func read_save(known_level_ids: Array[String]) -> bool:
 			settings[key] = clampf(float(value), 0.0, 1.0)
 	settings["fullscreen"] = options.get("fullscreen", false) == true
 	settings["new_game_difficulty"] = _integer(options.get("new_game_difficulty"), 1, 0, 2)
+	settings["text_locale"] = Localizer.sanitize_locale(options.get("text_locale", "ru"))
+	settings["voice_locale"] = Localizer.sanitize_voice_locale(options.get("voice_locale", "ru"))
 	settings["graphics"] = GraphicsScript.sanitize(options.get("graphics", {}))
 	var old_graphics: Variant = options.get("graphics", {})
 	if not old_graphics is Dictionary or not old_graphics.has("display_mode"):
@@ -63,19 +71,21 @@ func read_save(known_level_ids: Array[String]) -> bool:
 
 func write_save() -> bool:
 	last_error = ""
+	last_error_key = ""
+	last_error_arguments = {}
 	var payload: Dictionary = {"schema": SCHEMA, "level_id": level_id,
 		"completed_levels": completed_levels, "runs": runs, "settings": settings,
 		"native": {"difficulty": difficulty, "total_lives": total_lives, "qualified_levels": qualified_levels}}
 	var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
 	if file == null:
-		last_error = "Не удалось записать сохранение: %s" % error_string(FileAccess.get_open_error())
+		_set_error("save.open_error", {"error": error_string(FileAccess.get_open_error())})
 		return false
 	file.store_string(JSON.stringify(payload))
 	file.flush()
 	var write_error: Error = file.get_error()
 	file.close()
 	if write_error != OK or _read_document(path + ".tmp").is_empty():
-		last_error = "Запись сохранения не прошла проверку"
+		_set_error("save.verify_error")
 		return false
 	var absolute: String = ProjectSettings.globalize_path(path)
 	var backup: String = absolute + ".bak"
@@ -86,10 +96,10 @@ func write_save() -> bool:
 			if FileAccess.file_exists(backup):
 				var remove_error: Error = DirAccess.remove_absolute(backup)
 				if remove_error != OK:
-					last_error = "Не удалось обновить резервное сохранение"
+					_set_error("save.backup_error")
 					return false
 			if DirAccess.rename_absolute(absolute, backup) != OK:
-				last_error = "Не удалось сохранить предыдущую версию"
+				_set_error("save.previous_error")
 				return false
 		else:
 			# The invalid primary is retained for diagnosis without blocking recovery.
@@ -97,15 +107,21 @@ func write_save() -> bool:
 			if FileAccess.file_exists(invalid):
 				DirAccess.remove_absolute(invalid)
 			if DirAccess.rename_absolute(absolute, invalid) != OK:
-				last_error = "Не удалось заменить повреждённое сохранение"
+				_set_error("save.corrupt_error")
 				return false
 	var result: Error = DirAccess.rename_absolute(absolute + ".tmp", absolute)
 	if result != OK:
 		if not FileAccess.file_exists(absolute) and FileAccess.file_exists(backup):
 			DirAccess.copy_absolute(backup, absolute)
-		last_error = "Не удалось завершить сохранение: %s" % error_string(result)
+		_set_error("save.finish_error", {"error": error_string(result)})
 		return false
 	return true
+
+
+func _set_error(key: String, arguments: Dictionary = {}) -> void:
+	last_error_key = key
+	last_error_arguments = arguments.duplicate()
+	last_error = Localizer.text(key, arguments)
 
 
 func set_run(id: String, state: Dictionary) -> void:

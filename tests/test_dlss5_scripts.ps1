@@ -38,6 +38,22 @@ try {
     Assert-Check ($status.static_files_ok -and -not $status.neural_frame_reported) 'installation is not model execution'
     Assert-Check ((Get-FileHash -LiteralPath (Join-Path $destination 'clean/HugoRemaster.exe')).Hash -eq $sourceHash) 'independent clean game copy'
     Assert-Check (-not (Test-Path -LiteralPath (Join-Path $destination 'clean/opengl32.dll'))) 'no proxy in clean application directory'
+    $languagePack = Join-Path $temporary 'Hugo_Languages.pck'
+    [IO.File]::WriteAllBytes($languagePack, [Text.Encoding]::ASCII.GetBytes('GDPCfixture'))
+    $localizedDestination = Join-Path $temporary 'localized isolated game'
+    & (Join-Path $source 'Install-Hugo-DLSS5.ps1') -GameExe $game -Destination $localizedDestination -PackDirectory $fixture | Out-Null
+    Assert-Check ((Get-FileHash -LiteralPath (Join-Path $localizedDestination 'Hugo_Languages.pck')).Hash -eq (Get-FileHash -LiteralPath $languagePack).Hash) 'adjacent language pack copied intact'
+    Assert-Check (-not (Test-Path -LiteralPath (Join-Path $localizedDestination 'clean/Hugo_Languages.pck'))) 'language payload stored only once'
+    $localizedState = Get-Content -LiteralPath (Join-Path $localizedDestination 'dlss5-install-state.json') -Raw | ConvertFrom-Json
+    Assert-Check (@($localizedState.files | Where-Object { $_.path -eq 'Hugo_Languages.pck' }).Count -eq 1) 'optional language pack included in owned-file integrity inventory'
+    Remove-Item -LiteralPath (Join-Path $localizedDestination 'Hugo_Languages.pck')
+    $withoutLanguagePack = Get-HugoDlss5Status -Root $localizedDestination -StaticOnly
+    Assert-Check ($withoutLanguagePack.static_files_ok -and -not $withoutLanguagePack.optional_language_pack.present) 'missing optional languages do not disable verified graphics files'
+    [IO.File]::WriteAllText((Join-Path $localizedDestination 'Hugo_Languages.pck'), 'modified optional language data')
+    Assert-Check (Get-HugoDlss5Status -Root $localizedDestination -StaticOnly).static_files_ok 'optional data integrity is handled per cue without blocking graphics'
+    [IO.File]::WriteAllText($languagePack, 'invalid optional pack')
+    Assert-Rejected { & (Join-Path $source 'Install-Hugo-DLSS5.ps1') -GameExe $game -Destination (Join-Path $temporary 'bad language destination') -PackDirectory $fixture } 'invalid optional language pack rejected before copying'
+    Remove-Item -LiteralPath $languagePack
     Assert-Rejected { & (Join-Path $source 'Install-Hugo-DLSS5.ps1') -GameExe $game -Destination $destination -PackDirectory $fixture } 'existing directory never overwritten'
     Assert-Rejected { Get-HugoSafePath -Root $destination -Relative '../escape' } 'manifest path traversal rejected'
     $oldGame = Join-Path $temporary 'old x86.exe'

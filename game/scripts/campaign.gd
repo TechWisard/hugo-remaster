@@ -7,8 +7,12 @@ const StateScript = preload("res://scripts/campaign_state.gd")
 const MovieScript = preload("res://scripts/cinematic.gd")
 const GraphicsScript = preload("res://scripts/native_graphics_settings.gd")
 const GraphicsProbeScript = preload("res://scripts/native_graphics_probe.gd")
-const TITLES: Dictionary = {6: "Пляж", 17: "Старая тропа Кику", 27: "Алмазные шахты",
-	36: "Транспортная линия", 46: "Нефтепровод", 55: "Алмазная фабрика", 59: "Авария", 69: "Побег"}
+const Localizer = preload("res://scripts/native_localization.gd")
+const TextBindings = preload("res://scripts/native_text_bindings.gd")
+const VoiceLibrary = preload("res://scripts/native_voice_library.gd")
+const SoundScript = preload("res://scripts/native_audio.gd")
+const ResourceData = preload("res://scripts/native_resource_data.gd")
+const PerformanceMonitor = preload("res://scripts/native_performance_monitor.gd")
 const MOVIES_AFTER: Dictionary = {17: ["plan_on_track"], 36: ["more_power_1"],
 	46: ["more_power_2"], 59: ["lost_juice"], 69: ["outro"]}
 const MOVIES_BEFORE: Dictionary = {6: ["intro_b"], 27: ["plan_on_track"],
@@ -33,6 +37,10 @@ var _window_resize_timer: Timer
 var _ignore_window_resize_until: int = 0
 var _keep_startup_window: bool = false
 var _display_preview_window: Dictionary = {}
+var _text_bindings := TextBindings.new()
+var _locale_ready: bool = false
+var _loading_label: Label
+var _loading_group: int = -1
 
 
 func _ready() -> void:
@@ -53,6 +61,7 @@ func _ready() -> void:
 		ids.append(str(entry.id))
 	state.read_save(ids)
 	_apply_startup_settings()
+	PerformanceMonitor.attach_if_requested(self)
 	_setup_window_tracking()
 	var selected: String = ""
 	for argument: String in OS.get_cmdline_user_args():
@@ -87,10 +96,11 @@ func _load_catalog() -> void:
 		if not entry.has("id") or not entry.has("geometry_path") or not entry.has("manifest_path"):
 			continue
 		var main_group: int = int(entry.get("main_group", -1))
-		entry["title"] = TITLES.get(main_group, str(entry.get("source_name", "Глава")))
+		entry["title"] = Localizer.chapter_title(main_group, str(entry.get("source_name", "")))
 		levels.append(entry)
 	media = _json("res://assets/generated/media_manifest.json")
 	gameplay = _json("res://assets/generated/gameplay_manifest.json")
+	SoundScript.configure_catalog(gameplay.get("audio", {}) as Dictionary)
 
 
 func _show_menu() -> void:
@@ -161,6 +171,7 @@ func _start_level(id: String, resume: bool) -> void:
 	get_tree().paused = false
 	if is_instance_valid(menu):
 		menu.queue_free()
+	_loading_group = int(levels[index].get("main_group", -1))
 	_show_loading(str(levels[index].title))
 	await get_tree().process_frame
 	if is_instance_valid(current_level):
@@ -243,13 +254,13 @@ func _on_level_finished() -> void:
 		if visited == checkpoints.size():
 			current_level.lives = mini(current_level.lives + int(rules.get("all_checkpoints_finish_life_bonus", 1)), 20)
 		current_level.finish_rewards_applied = true
-	current_level.hud.modal_detail.text += "\nАлмазы: %d / %d · Контрольные точки: %d / %d" % [current_level.diamonds, total, visited, checkpoints.size()]
+	current_level.hud.set_finish_stats(current_level.diamonds, total, visited, checkpoints.size())
 	current_level._update_hud()
 	_store_run(current_level.run_state())
 	if current_index == levels.size() - 1:
 		# The final chapter still has a real continuation: the original outro.
 		current_level.hud.has_next_chapter = true
-		current_level.hud.next_button.text = "Финал"
+		current_level.hud.set_finale(true)
 		current_level.hud.next_button.show()
 		current_level.hud.next_button.grab_focus()
 
@@ -259,17 +270,19 @@ func _store_run(run: Dictionary) -> void:
 		return
 	state.set_run(str(levels[current_index].id), run)
 	if not state.write_save() and is_instance_valid(current_level) and current_level.hud:
-		current_level.hud.toast(state.last_error, 5.0)
+		current_level.hud.toast_key(state.last_error_key, state.last_error_arguments, 5.0)
 
 
 func _play_movies(keys: Array) -> void:
 	_music.stop()
 	for key: String in keys:
-		var movie_info: Dictionary = media.get("movies", {}).get(key, {})
-		if movie_info.is_empty():
+		var movie_info: Dictionary = VoiceLibrary.resolve_movie(key, media.get("movies", {}).get(key, {}))
+		if not bool(movie_info.get("available", false)):
 			continue
 		var movie := MovieScript.new()
-		movie.stream_path = "res://assets/generated/" + str(movie_info.path)
+		movie.movie_key = key
+		movie.voice_info = movie_info
+		movie.stream_path = str(movie_info.path)
 		movie.aspect_ratio = float(movie_info.get("width", 320)) / maxf(float(movie_info.get("height", 160)), 1.0)
 		add_child(movie)
 		await movie.finished
@@ -312,6 +325,15 @@ func _apply_startup_settings() -> void:
 
 
 func _apply_settings(persist: bool = true, manage_window: bool = true) -> void:
+	if not Localizer.events().language_changed.is_connected(_refresh_language):
+		Localizer.events().language_changed.connect(_refresh_language)
+	state.settings.text_locale = Localizer.sanitize_locale(state.settings.get("text_locale", "ru"))
+	state.settings.voice_locale = Localizer.sanitize_voice_locale(state.settings.get("voice_locale", "ru"))
+	Localizer.set_text_locale(str(state.settings.text_locale))
+	VoiceLibrary.set_locale(str(state.settings.voice_locale))
+	if not _locale_ready:
+		_refresh_language(Localizer.get_text_locale())
+		_locale_ready = true
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(maxf(float(state.settings.music_volume), 0.0001)))
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Effects"), linear_to_db(maxf(float(state.settings.effects_volume), 0.0001)))
 	var options: Dictionary = GraphicsScript.sanitize(state.settings.get("graphics", {}))
@@ -383,10 +405,10 @@ func _preview_display(requested: Dictionary) -> void:
 	_display_dialog = ConfirmationDialog.new()
 	_display_dialog.name = "DisplayConfirmation"
 	_display_dialog.process_mode = Node.PROCESS_MODE_ALWAYS
-	_display_dialog.title = "Настройки экрана"
-	_display_dialog.ok_button_text = "Оставить"
-	_display_dialog.cancel_button_text = "Вернуть"
-	_display_dialog.dialog_text = "Оставить новый режим?\nБез ответа прежние настройки вернутся через 15 секунд."
+	_text_bindings.bind_property(_display_dialog, "title", "display.confirm_title")
+	_text_bindings.bind_property(_display_dialog, "ok_button_text", "display.keep")
+	_text_bindings.bind_property(_display_dialog, "cancel_button_text", "display.revert")
+	_text_bindings.bind_property(_display_dialog, "dialog_text", "display.confirm")
 	_display_dialog.confirmed.connect(_finish_display_preview.bind(true))
 	_display_dialog.canceled.connect(_finish_display_preview.bind(false))
 	add_child(_display_dialog)
@@ -408,7 +430,7 @@ func _update_display_confirmation() -> void:
 	if not is_instance_valid(_display_dialog) or _display_preview_options.is_empty():
 		return
 	var size: Vector2i = get_tree().root.size
-	_display_dialog.dialog_text = "Оставить новый режим? Фактический размер: %d × %d.\nБез ответа прежние настройки вернутся через 15 секунд." % [size.x, size.y]
+	_text_bindings.bind_property(_display_dialog, "dialog_text", "display.confirm_actual", {"width": size.x, "height": size.y})
 
 
 func _finish_display_preview(accepted: bool) -> void:
@@ -470,7 +492,8 @@ func _show_loading(title: String) -> void:
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_loading.add_child(panel)
 	var label := Label.new()
-	label.text = title
+	_loading_label = label
+	_text_bindings.bind_property(label, "text", "loading.chapter", {"chapter": title})
 	label.add_theme_font_size_override("font_size", 34)
 	label.add_theme_color_override("font_color", Color("f6cf80"))
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -488,8 +511,8 @@ func _show_credits() -> void:
 	if not FileAccess.file_exists(path):
 		return
 	var dialog := AcceptDialog.new()
-	dialog.title = "Создатели оригинальной игры"
-	dialog.ok_button_text = "В меню"
+	_text_bindings.bind_property(dialog, "title", "credits.title")
+	_text_bindings.bind_property(dialog, "ok_button_text", "credits.menu")
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(620, 430)
 	dialog.add_child(scroll)
@@ -502,12 +525,17 @@ func _show_credits() -> void:
 	dialog.popup_centered()
 
 
-func _json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	return parsed if parsed is Dictionary else {}
+func _refresh_language(_locale: String) -> void:
+	get_tree().root.title = Localizer.text("app.title")
+	for entry: Dictionary in levels:
+		entry["title"] = Localizer.chapter_title(int(entry.get("main_group", -1)), str(entry.get("source_name", "")))
+	_text_bindings.refresh()
+	if is_instance_valid(_loading_label):
+		_text_bindings.bind_property(_loading_label, "text", "loading.chapter", {"chapter": Localizer.chapter_title(_loading_group)})
 
+
+func _json(path: String) -> Dictionary:
+	return ResourceData.read(path)
 
 func _capture() -> void:
 	if DisplayServer.get_name() == "headless":

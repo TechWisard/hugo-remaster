@@ -10,6 +10,10 @@ signal display_preview_requested(options: Dictionary)
 const GOLD := Color("f6cf80")
 const CREAM := Color("f9f0da")
 const GraphicsScript = preload("res://scripts/native_graphics_settings.gd")
+const Localizer = preload("res://scripts/native_localization.gd")
+const TextBindings = preload("res://scripts/native_text_bindings.gd")
+const VoiceLibrary = preload("res://scripts/native_voice_library.gd")
+const PerformanceProfiles = preload("res://scripts/performance_profile.gd")
 var state: CampaignState
 var entries: Array[Dictionary] = []
 var _root: Control
@@ -25,6 +29,16 @@ var _custom_width: SpinBox
 var _custom_height: SpinBox
 var _display_status: Label
 var _display_draft: Dictionary = {}
+var _text_bindings := TextBindings.new()
+var _chapter_buttons: Array[Button] = []
+var _chapter_overview: Label
+var _text_locale_choice: OptionButton
+var _voice_locale_choice: OptionButton
+var _quality_preset_choice: OptionButton
+var _graphics_choices: Dictionary = {}
+var _voice_placeholder_index: int = -1
+var _unavailable_voice_request: String = ""
+var _unavailable_voice_default: String = ""
 
 
 func _ready() -> void:
@@ -48,6 +62,8 @@ func _ready() -> void:
 	_menu.add_theme_constant_override("separation", 58)
 	margin.add_child(_menu)
 	_build_home()
+	Localizer.events().language_changed.connect(_refresh_language)
+	_refresh_language(Localizer.get_text_locale())
 
 
 func focus_default() -> void:
@@ -61,29 +77,29 @@ func _build_home() -> void:
 	brand.size_flags_stretch_ratio = 1.05
 	brand.add_theme_constant_override("separation", 16)
 	_menu.add_child(brand)
-	brand.add_child(_label("КУЗЯ", 64, GOLD))
-	brand.add_child(_label("АЛМАЗНАЯ\nЛИХОРАДКА", 32, CREAM))
+	brand.add_child(_label("brand.name", 64, GOLD))
+	brand.add_child(_label("brand.subtitle", 32, CREAM))
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	brand.add_child(spacer)
 	if not entries.is_empty():
 		var resume_id: String = state.level_id
 		if not resume_id.is_empty():
-			_first_button = _button("Продолжить", func() -> void: start_requested.emit(resume_id, true))
+			_first_button = _button("menu.continue", func() -> void: start_requested.emit(resume_id, true))
 			brand.add_child(_first_button)
-		var new_button := _button("Новая игра", _confirm_new_game)
+		var new_button := _button("menu.new_game", _confirm_new_game)
 		brand.add_child(new_button)
 		if _first_button == null:
 			_first_button = new_button
 	else:
-		var missing := _label("Оригинальные ресурсы не подключены.\nИмпортируйте HUGO4.CD по инструкции README.", 17, CREAM)
+		var missing := _label("menu.assets_missing", 17, CREAM)
 		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		brand.add_child(missing)
-		_first_button = _button("Тестовый маршрут", func() -> void: demo_requested.emit())
+		_first_button = _button("menu.test_route", func() -> void: demo_requested.emit())
 		brand.add_child(_first_button)
-	brand.add_child(_button("Настройки", _show_options))
-	brand.add_child(_button("Выйти", func() -> void: get_tree().quit()))
-	brand.add_child(_label("WASD · ПРОБЕЛ · E — АТАКА · CTRL — ПОЛЗТИ", 12, Color("abbdb8")))
+	brand.add_child(_button("menu.settings", _show_options))
+	brand.add_child(_button("menu.quit", func() -> void: get_tree().quit()))
+	brand.add_child(_label("menu.controls", 12, Color("abbdb8")))
 	var column := VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 12)
@@ -91,7 +107,7 @@ func _build_home() -> void:
 	_chapters = VBoxContainer.new()
 	_chapters.add_theme_constant_override("separation", 9)
 	column.add_child(_chapters)
-	_chapters.add_child(_label("ГЛАВЫ", 15, GOLD))
+	_chapters.add_child(_label("menu.chapters", 15, GOLD))
 	for index: int in range(entries.size()):
 		var entry: Dictionary = entries[index]
 		var id: String = str(entry.id)
@@ -100,10 +116,13 @@ func _build_home() -> void:
 			func() -> void: start_requested.emit(id, false))
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		_chapters.add_child(button)
+		_chapter_buttons.append(button)
 	if entries.is_empty():
-		_chapters.add_child(_label("Пляж → тропа Кику → шахты →\nтранспортная линия → нефтепровод →\nфабрика → авария → побег", 20, CREAM))
+		_chapter_overview = _label("", 20, CREAM)
+		_chapter_overview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_chapters.add_child(_chapter_overview)
 	else:
-		var progress := _label("Пройдено глав: %d / %d" % [state.completed_levels.size(), entries.size()], 15, Color("abbdb8"))
+		var progress := _label("menu.progress", 15, Color("abbdb8"), {"done": state.completed_levels.size(), "total": entries.size()})
 		_chapters.add_child(progress)
 	_options_scroll = ScrollContainer.new()
 	_options_scroll.name = "OptionsScroll"
@@ -115,13 +134,15 @@ func _build_home() -> void:
 	_options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_options.add_theme_constant_override("separation", 12)
 	_options_scroll.add_child(_options)
-	_options.add_child(_label("НАСТРОЙКИ", 22, GOLD))
-	_add_slider("Музыка", "music_volume")
-	_add_slider("Эффекты", "effects_volume")
-	_options.add_child(_label("Сложность новой игры", 18, CREAM))
+	_options.add_child(_label("options.heading", 22, GOLD))
+	_build_language_options()
+	_add_slider("audio.music", "music_volume")
+	_add_slider("audio.effects", "effects_volume")
+	_options.add_child(_label("difficulty.label", 18, CREAM))
 	var difficulty := OptionButton.new()
-	for title: String in ["Легко", "Обычно", "Сложно"]:
-		difficulty.add_item(title)
+	for title: String in ["difficulty.easy", "difficulty.normal", "difficulty.hard"]:
+		difficulty.add_item("")
+		_text_bindings.bind_item(difficulty, difficulty.item_count - 1, title)
 	difficulty.selected = int(state.settings.get("new_game_difficulty", 1))
 	difficulty.custom_minimum_size.y = 36
 	difficulty.item_selected.connect(func(index: int) -> void:
@@ -129,7 +150,7 @@ func _build_home() -> void:
 		settings_changed.emit())
 	_options.add_child(difficulty)
 	_build_graphics_options()
-	_options.add_child(_button("Назад к главам", func() -> void:
+	_options.add_child(_button("options.back_chapters", func() -> void:
 		_options_scroll.hide()
 		_chapters.show()
 		focus_default()))
@@ -141,10 +162,10 @@ func _confirm_new_game() -> void:
 		new_game_requested.emit()
 		return
 	var confirmation := ConfirmationDialog.new()
-	confirmation.title = "Новая игра"
-	confirmation.dialog_text = "Начать с первой главы и сбросить текущее прохождение?"
-	confirmation.ok_button_text = "Начать заново"
-	confirmation.cancel_button_text = "Отмена"
+	_text_bindings.bind_property(confirmation, "title", "dialog.new_game_title")
+	_text_bindings.bind_property(confirmation, "dialog_text", "dialog.new_game_body")
+	_text_bindings.bind_property(confirmation, "ok_button_text", "dialog.restart")
+	_text_bindings.bind_property(confirmation, "cancel_button_text", "dialog.cancel")
 	confirmation.confirmed.connect(func() -> void:
 		confirmation.queue_free()
 		new_game_requested.emit())
@@ -162,51 +183,165 @@ func _show_options() -> void:
 			break
 
 
+func _build_language_options() -> void:
+	_options.add_child(_label("language.heading", 18, GOLD))
+	_text_locale_choice = _display_choice_row("language.text", "TextLocale")
+	for code: String in Localizer.available_text_locales():
+		_text_locale_choice.add_item(Localizer.language_name(code))
+		var index: int = _text_locale_choice.item_count - 1
+		_text_locale_choice.set_item_metadata(index, code)
+		if code == state.settings.get("text_locale", "ru"):
+			_text_locale_choice.select(index)
+	_text_locale_choice.item_selected.connect(func(index: int) -> void:
+		state.settings.text_locale = str(_text_locale_choice.get_item_metadata(index))
+		settings_changed.emit())
+	_voice_locale_choice = _display_choice_row("language.voice", "VoiceLocale")
+	var installed: Array[String] = VoiceLibrary.available_locales()
+	for code: String in installed:
+		_voice_locale_choice.add_item(Localizer.language_name(code))
+		var index: int = _voice_locale_choice.item_count - 1
+		_voice_locale_choice.set_item_metadata(index, code)
+		if code == state.settings.get("voice_locale", "ru"):
+			_voice_locale_choice.select(index)
+	var requested: String = str(state.settings.get("voice_locale", "ru"))
+	if requested not in installed:
+		# Retain the saved request without presenting the first unrelated locale
+		# as selected. This can happen after removing or replacing a voice pack.
+		_unavailable_voice_request = requested
+		var default_locale: String = VoiceLibrary.normalize_locale(str(VoiceLibrary.get_manifest().get("default_voice_locale", "")))
+		_unavailable_voice_default = default_locale if default_locale in installed else ""
+		_voice_placeholder_index = _voice_locale_choice.item_count
+		_voice_locale_choice.add_item("")
+		_voice_locale_choice.set_item_metadata(_voice_placeholder_index, "")
+		_voice_locale_choice.set_item_disabled(_voice_placeholder_index, true)
+		_voice_locale_choice.select(_voice_placeholder_index)
+		_refresh_voice_fallback()
+	_voice_locale_choice.disabled = installed.is_empty()
+	_voice_locale_choice.item_selected.connect(func(index: int) -> void:
+		var code: Variant = _voice_locale_choice.get_item_metadata(index)
+		if not code is String or code not in installed:
+			return
+		state.settings.voice_locale = code
+		if _voice_placeholder_index >= 0:
+			_voice_locale_choice.remove_item(_voice_placeholder_index)
+			_voice_placeholder_index = -1
+			_unavailable_voice_request = ""
+			_unavailable_voice_default = ""
+			_voice_locale_choice.tooltip_text = ""
+		settings_changed.emit())
+	var hint := _label("language.voice_hint", 13, Color("abbdb8"))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_options.add_child(hint)
+
+
+func _refresh_voice_fallback() -> void:
+	if _voice_locale_choice == null or _voice_placeholder_index < 0:
+		return
+	var requested: String = Localizer.language_name(_unavailable_voice_request)
+	var actual: String = Localizer.language_name(_unavailable_voice_default) if not _unavailable_voice_default.is_empty() else Localizer.text("voice.original")
+	_voice_locale_choice.set_item_text(_voice_placeholder_index, requested + " → " + actual)
+	_voice_locale_choice.tooltip_text = Localizer.text("voice.fallback", {"actual": actual, "requested": requested})
+
+
+func _refresh_language(_locale: String) -> void:
+	_text_bindings.refresh()
+	_refresh_voice_fallback()
+	for index: int in range(_chapter_buttons.size()):
+		var entry: Dictionary = entries[index]
+		var mark: String = "   ✓" if state.completed_levels.get(str(entry.id), false) else ""
+		_chapter_buttons[index].text = "%02d   %s%s" % [index + 1,
+			Localizer.chapter_title(int(entry.get("main_group", -1)), str(entry.get("title", ""))), mark]
+	if is_instance_valid(_chapter_overview):
+		var chapters: Array[String] = []
+		for group: int in [6, 17, 27, 36, 46, 55, 59, 69]:
+			chapters.append(Localizer.chapter_title(group))
+		_chapter_overview.text = " → ".join(chapters)
+	# Only refresh text; do not reload committed settings over a pending draft,
+	# rebuild controls, reset scroll/focus or restart a display-confirmation timer.
+	_update_display_draft()
+
+
 func _build_graphics_options() -> void:
 	state.settings["graphics"] = GraphicsScript.sanitize(state.settings.get("graphics", {}))
-	_options.add_child(_label("ГРАФИКА", 18, GOLD))
+	_options.add_child(_label("graphics.heading", 18, GOLD))
+	_build_quality_presets()
 	_build_display_options()
 	if GraphicsScript.launch_profile_requested():
-		var caption: String = "Профиль DLSS 5: MSAA 4×, разрешение 3D 100%."
+		var caption: String = "graphics.profile_dlss"
 		if GraphicsScript.feeder_profile_requested():
-			caption = "Профиль Feeder: MSAA выкл., разрешение 3D 100%."
+			caption = "graphics.profile_feeder"
 		if GraphicsScript.safe_profile_requested():
-			caption = "Совместимый профиль: MSAA 2×, разрешение 3D 100%."
+			caption = "graphics.profile_safe"
 		var profile := _label(caption, 13, Color("abbdb8"))
 		profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_options.add_child(profile)
-	_graphics_choice("Сглаживание", "msaa", [0, 2, 4, 8], ["Выкл.", "MSAA 2×", "MSAA 4×", "MSAA 8×"], "GraphicsMSAA")
-	_graphics_choice("Разрешение 3D", "render_scale", [1.0, 1.5, 2.0], ["100%", "150% · SSAA", "200% · SSAA"], "GraphicsRenderScale")
-	var scale_hint := _label("Выше 100% — чётче изображение, выше нагрузка на видеокарту.", 13, Color("abbdb8"))
+	_graphics_choice("graphics.aa", "msaa", [0, 2, 4, 8], ["graphics.off", "MSAA 2×", "MSAA 4×", "MSAA 8×"], "GraphicsMSAA")
+	_graphics_choice("graphics.scale", "render_scale", GraphicsScript.RENDER_SCALES, ["50%", "67%", "75%", "100%", "150% · SSAA", "200% · SSAA"], "GraphicsRenderScale")
+	var scale_hint := _label("graphics.scale_hint", 13, Color("abbdb8"))
 	scale_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_options.add_child(scale_hint)
-	var textures: OptionButton = _graphics_choice("Текстуры", "texture_quality", ["original", "enhanced"], ["Оригинал", "Улучшенные"], "GraphicsTextures")
+	var textures: OptionButton = _graphics_choice("graphics.textures", "texture_quality", ["original", "enhanced"], ["graphics.original", "graphics.enhanced"], "GraphicsTextures")
 	if not GraphicsScript.enhanced_textures_available():
 		textures.set_item_disabled(1, true)
 		textures.select(0)
-		textures.tooltip_text = "Улучшенный набор текстур не установлен."
+		_text_bindings.bind_property(textures, "tooltip_text", "graphics.pack_missing")
 	else:
-		textures.tooltip_text = "Улучшенный набор заменяет только входящие в него текстуры."
+		_text_bindings.bind_property(textures, "tooltip_text", "graphics.pack_partial")
 	var vsync := CheckButton.new()
 	vsync.name = "GraphicsVSync"
-	vsync.text = "Вертикальная синхронизация"
+	_text_bindings.bind_property(vsync, "text", "graphics.vsync")
 	vsync.button_pressed = bool(state.settings.graphics.vsync)
 	vsync.toggled.connect(func(enabled: bool) -> void:
 		state.settings.graphics.vsync = enabled
 		settings_changed.emit())
 	_options.add_child(vsync)
+	_refresh_graphics_controls()
+
+
+func _build_quality_presets() -> void:
+	_quality_preset_choice = _display_choice_row("graphics.preset", "GraphicsPreset")
+	for name: String in PerformanceProfiles.ORDER + ["custom"]:
+		_quality_preset_choice.add_item("")
+		var index: int = _quality_preset_choice.item_count - 1
+		_quality_preset_choice.set_item_metadata(index, name)
+		_text_bindings.bind_item(_quality_preset_choice, index, "preset." + name)
+	_quality_preset_choice.set_item_disabled(_quality_preset_choice.item_count - 1, true)
+	_quality_preset_choice.disabled = GraphicsScript.launch_profile_requested()
+	_quality_preset_choice.item_selected.connect(func(index: int) -> void:
+		var name: String = str(_quality_preset_choice.get_item_metadata(index))
+		state.settings.graphics = PerformanceProfiles.apply_preset(state.settings.graphics, name)
+		_refresh_graphics_controls()
+		settings_changed.emit())
+
+
+func _refresh_graphics_controls() -> void:
+	var effective: Dictionary = GraphicsScript.effective_options(state.settings.graphics)
+	for key: String in _graphics_choices:
+		var choice: OptionButton = _graphics_choices[key]
+		for index: int in range(choice.item_count):
+			if choice.get_item_metadata(index) == effective.get(key):
+				choice.select(index)
+		if key == "texture_quality" and not GraphicsScript.enhanced_textures_available():
+			choice.select(0)
+	if _quality_preset_choice != null:
+		var preset: String = PerformanceProfiles.identify(effective)
+		for index: int in range(_quality_preset_choice.item_count):
+			if _quality_preset_choice.get_item_metadata(index) == preset:
+				_quality_preset_choice.select(index)
 
 
 func _build_display_options() -> void:
 	_display_draft = GraphicsScript.display_options(state.settings.graphics)
-	_display_mode_choice = _display_choice_row("Режим экрана", "DisplayMode")
-	for title: String in ["Окно", "Без рамок", "Полный экран"]:
-		_display_mode_choice.add_item(title)
+	_display_mode_choice = _display_choice_row("display.mode", "DisplayMode")
+	for title: String in ["display.windowed", "display.borderless", "display.fullscreen"]:
+		_display_mode_choice.add_item("")
+		_text_bindings.bind_item(_display_mode_choice, _display_mode_choice.item_count - 1, title)
 	_display_mode_choice.item_selected.connect(func(index: int) -> void:
 		_display_draft.display_mode = GraphicsScript.DISPLAY_MODES[index]
 		_update_display_draft())
-	_resolution_choice = _display_choice_row("Размер окна", "DisplayResolution")
-	_resolution_choice.add_item("Авто · рабочий стол")
+	_resolution_choice = _display_choice_row("display.window_size", "DisplayResolution")
+	_resolution_choice.add_item("")
+	_text_bindings.bind_item(_resolution_choice, 0, "display.auto")
 	_resolution_choice.set_item_metadata(0, Vector2i.ZERO)
 	for size: Vector2i in GraphicsScript.WINDOW_PRESETS:
 		var label: String = "%d × %d" % [size.x, size.y]
@@ -218,7 +353,8 @@ func _build_display_options() -> void:
 			label += " · 4K"
 		_resolution_choice.add_item(label)
 		_resolution_choice.set_item_metadata(_resolution_choice.item_count - 1, size)
-	_resolution_choice.add_item("Свой размер…")
+	_resolution_choice.add_item("")
+	_text_bindings.bind_item(_resolution_choice, _resolution_choice.item_count - 1, "display.custom")
 	_resolution_choice.set_item_metadata(_resolution_choice.item_count - 1, Vector2i(-1, -1))
 	_resolution_choice.item_selected.connect(func(_index: int) -> void: _update_display_draft())
 	_custom_resolution_row = HBoxContainer.new()
@@ -230,7 +366,7 @@ func _build_display_options() -> void:
 	_display_status = _label("", 13, Color("abbdb8"))
 	_display_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_options.add_child(_display_status)
-	var apply := _button("Применить режим экрана", func() -> void:
+	var apply := _button("display.apply", func() -> void:
 		_update_display_draft()
 		display_preview_requested.emit(_display_draft.duplicate()))
 	apply.name = "ApplyDisplay"
@@ -298,9 +434,8 @@ func _update_display_draft() -> void:
 	_custom_resolution_row.visible = custom and windowed
 	var screen: Dictionary = GraphicsScript.screen_geometry(get_tree().root)
 	var actual: Vector2i = get_tree().root.size
-	_display_status.text = "Сейчас: %d × %d. Экран: %d × %d.\n" % [actual.x, actual.y, screen.size.x, screen.size.y]
-	_display_status.text += "Окно ограничивается рабочей областью экрана. Новый режим можно отменить за 15 секунд." \
-		if windowed else "Безрамочный и полный экран используют родное разрешение монитора."
+	_display_status.text = Localizer.text("display.status", {"width": actual.x, "height": actual.y, "screen_width": screen.size.x, "screen_height": screen.size.y})
+	_display_status.text += "\n" + Localizer.text("display.window_hint" if windowed else "display.fullscreen_hint")
 
 
 func _graphics_choice(title: String, key: String, values: Array, labels: Array, node_name: String) -> OptionButton:
@@ -315,20 +450,25 @@ func _graphics_choice(title: String, key: String, values: Array, labels: Array, 
 	var effective: Dictionary = GraphicsScript.effective_options(state.settings.graphics)
 	for index: int in range(values.size()):
 		choice.add_item(str(labels[index]))
+		choice.set_item_metadata(index, values[index])
+		if Localizer.has_key(str(labels[index])):
+			_text_bindings.bind_item(choice, index, str(labels[index]))
 		if effective.get(key) == values[index]:
 			choice.select(index)
 	if GraphicsScript.launch_profile_requested() and key in ["msaa", "render_scale"]:
 		choice.disabled = true
 	choice.item_selected.connect(func(index: int) -> void:
 		state.settings.graphics[key] = values[index]
+		_refresh_graphics_controls()
 		settings_changed.emit())
 	row.add_child(choice)
 	_options.add_child(row)
+	_graphics_choices[key] = choice
 	return choice
 
 
 func _add_slider(title: String, key: String) -> void:
-	var label := _label("%s · %d%%" % [title, roundi(float(state.settings[key]) * 100)], 18, CREAM)
+	var label := _label(title, 18, CREAM, {"value": roundi(float(state.settings[key]) * 100)})
 	_options.add_child(label)
 	var slider := HSlider.new()
 	slider.min_value = 0.0
@@ -338,14 +478,19 @@ func _add_slider(title: String, key: String) -> void:
 	slider.custom_minimum_size.y = 28
 	slider.value_changed.connect(func(value: float) -> void:
 		state.settings[key] = value
-		label.text = "%s · %d%%" % [title, roundi(value * 100)]
+		_text_bindings.bind_property(label, "text", title, {"value": roundi(value * 100)})
 		settings_changed.emit())
 	_options.add_child(slider)
 
 
-func _label(text: String, size: int, color: Color) -> Label:
+func _label(text: String, size: int, color: Color, arguments: Dictionary = {}) -> Label:
 	var label := Label.new()
-	label.text = text
+	if Localizer.has_key(text):
+		_text_bindings.bind_property(label, "text", text, arguments)
+	else:
+		label.text = text
+	if text in ["brand.subtitle", "menu.controls"]:
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
 	return label
@@ -353,7 +498,10 @@ func _label(text: String, size: int, color: Color) -> Label:
 
 func _button(text: String, action: Callable) -> Button:
 	var button := Button.new()
-	button.text = text
+	if Localizer.has_key(text):
+		_text_bindings.bind_property(button, "text", text)
+	else:
+		button.text = text
 	button.custom_minimum_size = Vector2(0, 48)
 	button.add_theme_font_size_override("font_size", 18)
 	button.add_theme_color_override("font_color", CREAM)

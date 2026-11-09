@@ -3,10 +3,82 @@ extends AudioStreamPlayer3D
 ## Decoded CSound gain, distance curve, looping and exclusive-group suppression.
 ## Spatial panning is provided by Godot; it is not a DirectSound emulation.
 
+const VoiceLibrary = preload("res://scripts/native_voice_library.gd")
+
 var settings: Dictionary = {}
 var listener: Node3D
 static var _active_groups: Dictionary = {}
+static var _source_catalog: Dictionary = {}
+static var _source_by_path: Dictionary = {}
+static var _canonical_by_hash: Dictionary = {}
+static var _stream_cache: Dictionary = {}
+static var _cache_hits: int = 0
+static var _cache_misses: int = 0
 var _exclusive_group: int = -1
+
+
+static func configure_catalog(catalog: Dictionary) -> void:
+	# The verified import catalog preserves every native ID. Only immutable sample
+	# bytes are shared; each active player retains its own loop/pitch/gain state.
+	_source_catalog = catalog
+	_source_by_path.clear()
+	_canonical_by_hash.clear()
+	clear_stream_cache()
+	var keys: Array = catalog.keys()
+	keys.sort()
+	for key: String in keys:
+		if not catalog[key] is Dictionary:
+			continue
+		var info: Dictionary = catalog[key]
+		var path: String = VoiceLibrary.generated_path(str(info.get("path", "")))
+		if path.is_empty():
+			continue
+		_source_by_path[path] = info
+		var digest: String = str(info.get("sha256", "")).to_lower()
+		if VoiceLibrary.valid_sha256(digest) and not _canonical_by_hash.has(digest):
+			_canonical_by_hash[digest] = path
+
+
+static func clear_stream_cache() -> void:
+	_stream_cache.clear()
+	_cache_hits = 0
+	_cache_misses = 0
+
+
+static func cache_stats() -> Dictionary:
+	return {"source_ids": _source_catalog.size(), "unique_source_hashes": _canonical_by_hash.size(),
+		"resident_streams": _stream_cache.size(), "hits": _cache_hits, "loads": _cache_misses}
+
+
+static func cached_stream(info: Dictionary) -> AudioStream:
+	# The returned resource is immutable shared data; playback duplicates the
+	# resource wrapper so concurrent native looping and one-shot cues stay separate.
+	return _resolved_stream(VoiceLibrary.resolve_audio(info))
+
+
+static func _resolved_stream(resolved: Dictionary) -> AudioStream:
+	if not bool(resolved.get("available", false)):
+		return null
+	var path: String = str(resolved.get("path", ""))
+	var source: Dictionary = _source_by_path.get(path, {})
+	var digest: String = str(source.get("sha256", "")).to_lower()
+	if str(resolved.get("asset_source", "")) == "voice_pack":
+		digest = str(resolved.get("sha256", "")).to_lower()
+	var key: String = "path:" + path
+	if VoiceLibrary.valid_sha256(digest):
+		key = "sha256:" + digest
+	if _stream_cache.has(key):
+		_cache_hits += 1
+		return _stream_cache[key] as AudioStream
+	var canonical: String = str(_canonical_by_hash.get(digest, path))
+	if not ResourceLoader.exists(canonical, "AudioStream"):
+		canonical = path
+	var resource: AudioStream = load(canonical) as AudioStream
+	if resource == null:
+		return null
+	_cache_misses += 1
+	_stream_cache[key] = resource
+	return resource
 
 
 func _ready() -> void:
@@ -18,8 +90,8 @@ func _ready() -> void:
 
 
 func play_source(info: Dictionary, pitch: float = 1.0) -> bool:
-	var path: String = "res://assets/generated/" + str(info.get("path", ""))
-	if not ResourceLoader.exists(path):
+	var resolved: Dictionary = VoiceLibrary.resolve_audio(info)
+	if not bool(resolved.get("available", false)):
 		return false
 	# 0x418BEC compares the low word (record+0x24), not the adjacent mix
 	# gain index. Only sounds carrying flag 0x20 participate in suppression.
@@ -34,9 +106,12 @@ func play_source(info: Dictionary, pitch: float = 1.0) -> bool:
 			var other: NativeSound = reference.get_ref() as NativeSound
 			if other != self and bool(other.settings.get("suppress_same_group", false)):
 				return false
+	var shared: AudioStream = _resolved_stream(resolved)
+	if shared == null:
+		return false
 	stop_source()
 	settings = info
-	stream = (load(path) as AudioStream).duplicate() as AudioStream
+	stream = shared.duplicate() as AudioStream
 	if stream is AudioStreamWAV:
 		var wave: AudioStreamWAV = stream as AudioStreamWAV
 		wave.loop_mode = AudioStreamWAV.LOOP_FORWARD if info.get("native_loop", false) else AudioStreamWAV.LOOP_DISABLED

@@ -7,7 +7,7 @@ const DEFAULTS: Dictionary = {"msaa": 4, "render_scale": 1.0, "vsync": true, "te
 	"display_mode": "windowed", "window_width": 0, "window_height": 0}
 const MSAA_MODES: Dictionary = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X,
 	4: Viewport.MSAA_4X, 8: Viewport.MSAA_8X}
-const RENDER_SCALES: Array[float] = [1.0, 1.5, 2.0]
+const RENDER_SCALES: Array[float] = [0.5, 0.67, 0.75, 1.0, 1.5, 2.0]
 const DISPLAY_MODES: Array[String] = ["windowed", "borderless", "fullscreen"]
 const DISPLAY_KEYS: Array[String] = ["display_mode", "window_width", "window_height"]
 const UI_BASE_SIZE := Vector2i(1280, 720)

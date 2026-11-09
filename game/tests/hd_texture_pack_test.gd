@@ -29,6 +29,7 @@ func _run() -> void:
 		_check(not bool(TexturePack.get_status().enabled), "clean checkout has no active HD replacement")
 		_finish()
 		return
+	_check_hd_cache_release()
 	var packed: PackedScene = load("res://assets/generated/levels/g006.glb") as PackedScene
 	var level: Node = packed.instantiate()
 	root.add_child(level)
@@ -78,6 +79,35 @@ func _run() -> void:
 	TexturePack.set_enabled(false)
 	_check(int(TexturePack.get_status().active_materials) == 0, "turning the pack off clears all active material replacements")
 	_finish()
+
+
+func _check_hd_cache_release() -> void:
+	var packed: PackedScene = load("res://assets/generated/levels/g006.glb") as PackedScene
+	var owner: Node = packed.instantiate()
+	var originals: Array[BaseMaterial3D] = []
+	_collect_materials(owner, originals)
+	TexturePack.set_enabled(true)
+	var material: BaseMaterial3D
+	var source: Texture2D
+	var replacement: Texture2D
+	for original: BaseMaterial3D in originals:
+		source = original.albedo_texture
+		if source == null:
+			continue
+		replacement = TexturePack.resolve(source)
+		if replacement != source:
+			material = Materials.prepare_material(original, true) as BaseMaterial3D
+			break
+	_check(material != null and replacement != source, "real HD allocation exists before performance switch")
+	if material != null:
+		var reference: WeakRef = weakref(replacement)
+		replacement = null
+		TexturePack.set_enabled(false)
+		_check(material.albedo_texture == source, "performance switch restores original pixels")
+		_check(reference.get_ref() == null, "performance mode releases HD texture with no remaining visual owner")
+		TexturePack.set_enabled(true)
+		_check(material.albedo_texture != source and material.albedo_texture.get_image().has_mipmaps(), "quality mode recreates HD with mipmaps after release")
+	owner.free()
 
 
 func _temporary_binding() -> Dictionary:

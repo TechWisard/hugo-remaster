@@ -22,6 +22,7 @@ const ScopeScript = preload("res://scripts/native_scopes.gd")
 const SoundScript = preload("res://scripts/native_audio.gd")
 const SpeakerScript = preload("res://scripts/native_speaker.gd")
 const NativeMaterialsScript = preload("res://scripts/native_materials.gd")
+const SceneIndexScript = preload("res://scripts/native_scene_index.gd")
 
 var entry: Dictionary
 var data: Dictionary
@@ -92,9 +93,10 @@ func _ready() -> void:
 	level_geometry = (load(path) as PackedScene).instantiate() as Node3D
 	add_child(level_geometry)
 	_enable_vertex_colors(level_geometry)
+	var scene_index: Dictionary = SceneIndexScript.descendants(level_geometry)
 	for owner: Dictionary in data.get("owners", []):
 		owners[str(owner.id)] = owner
-		var found: Node = level_geometry.find_child(str(owner.id), true, false)
+		var found: Node = scene_index.get(str(owner.id)) as Node
 		if found is Node3D:
 			owner_nodes[str(owner.id)] = found
 	var bounds_value: Variant = data.get("bounds", entry.get("bounds", []))
@@ -117,7 +119,7 @@ func _ready() -> void:
 	_create_player_logic()
 	hud = HUDScript.new()
 	add_child(hud)
-	hud.set_chapter(str(entry.get("title", entry.get("source_name", ""))), chapter_number, has_next)
+	hud.set_chapter(str(entry.get("title", entry.get("source_name", ""))), chapter_number, has_next, int(entry.get("main_group", -1)))
 	hud.restart_requested.connect(func() -> void: restart_requested.emit())
 	hud.menu_requested.connect(func() -> void: _save_progress(); menu_requested.emit())
 	hud.next_requested.connect(func() -> void: next_requested.emit())
@@ -136,7 +138,7 @@ func _ready() -> void:
 		# cost is already committed, so resume the checkpoint without charging again.
 		restore_native_world()
 	_update_hud()
-	hud.toast(str(entry.get("title", "")), 4.0)
+	hud.toast_key("chapter.%d" % int(entry.get("main_group", -1)), {}, 4.0)
 	_ready_ok = true
 	if lives <= 0:
 		player.controls_enabled = false
@@ -713,7 +715,7 @@ func _activate_segment(id: String) -> void:
 
 func _on_respawn() -> void:
 	if hud:
-		hud.toast("Возвращение к контрольной точке", 2.0)
+		hud.toast_key("toast.checkpoint_return", {}, 2.0)
 
 
 func _on_reset_requested(reason: String) -> void:
@@ -840,7 +842,7 @@ func set_native_checkpoint(id: String, position: Vector3) -> void:
 	checkpoint_id = id
 	activated[id] = true
 	player.set_checkpoint(position + Vector3.UP * 0.05)
-	hud.toast("Контрольная точка", 3.0)
+	hud.toast_key("toast.checkpoint", {}, 3.0)
 	save_native_world.call_deferred()
 
 

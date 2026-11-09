@@ -83,8 +83,13 @@ function Get-HugoDlss5Status {
     $manifest = Get-Content -LiteralPath (Join-Path $Root 'dlss5-pack-manifest.json') -Raw | ConvertFrom-Json
     $state = Get-Content -LiteralPath (Join-Path $Root 'dlss5-install-state.json') -Raw | ConvertFrom-Json
     if ($manifest.pack_id -ne 'hugo-dlss5-gitc-opengl-v1' -or $state.pack_id -ne $manifest.pack_id) { throw 'Invalid installation marker.' }
-    $errors = @(Test-HugoPackFiles -Root $Root -Manifest $state)
+    # Localization is optional data. Its absence/corruption must not disable a
+    # working graphics route, and hashing hundreds of MB here delays every launch.
+    # The game checks each requested language cue before opening it.
+    $graphicsState = @{ files = @($state.files | Where-Object { $_.path -ne 'Hugo_Languages.pck' }) }
+    $errors = @(Test-HugoPackFiles -Root $Root -Manifest $graphicsState)
     $report = [ordered]@{ schema = 1; backend = $manifest.backend; static_files_ok = ($errors.Count -eq 0); errors = $errors; status = 'static_ready_not_executed'; neural_frame_reported = $false; visual_quality_validated = $false; benchmark_validated = $false }
+    $report.optional_language_pack = [ordered]@{ present = (Test-Path -LiteralPath (Join-Path $Root 'Hugo_Languages.pck') -PathType Leaf); required_for_graphics = $false; integrity = 'checked_per_cue_by_game' }
     if ($errors.Count) { $report.status = 'files_invalid'; return $report }
     if ($StaticOnly) { return $report }
     $runPath = Join-Path $Root 'dlss5-last-run.json'

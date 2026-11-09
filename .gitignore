@@ -3,6 +3,8 @@ original/
 .work/
 game/assets/generated/
 game/assets/hd/
+game/assets/localization/
+game/assets/.localization-*
 game/assets/.generated-*/
 
 # Godot import cache and exports
@@ -31,3 +33,4 @@ Thumbs.db
 
 # Private development screenshots / recordings
 captures/
+/game/assets/runtime_cache/
