@@ -36,7 +36,8 @@ func _run() -> void:
 		"g001_r0001": {"initial_translation": [0, 0, 0], "translation_keys": [[0, 0, 0], [100, 0, 0]]}}
 	var moving: Dictionary = box.duplicate(true)
 	moving.transform_chain = [{"group": 1, "record": 1}]
-	graph.source = {"actions": [{"index": 0, "collision_nodes": [box]}, {"index": 1, "collision_nodes": [moving]}]}
+	graph.source = {"actions": [{"index": 0, "collision_nodes": [box]}, {"index": 1, "collision_nodes": [moving]},
+		{"index": 2, "collision_nodes": []}, {"index": 3, "collision_nodes": [box, moving]}]}
 	visual.add_child(graph)
 	graph.set_physics_process(false)
 	_check(graph.active_boxes.size() == 1 and is_instance_valid(graph.physical_body), "source box and physical slot created")
@@ -47,10 +48,20 @@ func _run() -> void:
 		graph.refresh()
 	_check(graph.active_boxes == original and graph.refreshed_poses == refreshed, "fixed box reused across changing visual phases")
 	_check(graph.reused_poses == 60, "one cache reuse for each stable frame")
+	var samples: int = graph.sampled_local_poses
+	var layer_changes: int = graph.physical_layer_changes
+	var retained: Dictionary = graph.active_boxes[0]
 	visual.position = Vector3(3, 4, 5)
 	graph.refresh()
 	_check(graph.active_boxes[0].center == Vector3(3, 4, 5), "world movement invalidates cached OBB")
 	_check(graph.physical_body.global_position == Vector3(3, 4, 5), "physical body follows changed world pose")
+	_check(graph.sampled_local_poses == samples and graph.reused_local_poses == 1, "moving owner reuses its unchanged local chain")
+	_check(graph.physical_layer_changes == layer_changes and graph.physical_body.collision_layer == 1, "moving body stays enabled without layer churn")
+	_check(retained.center == Vector3.ZERO, "refresh does not mutate a retained collision payload")
+	for tick: int in range(120):
+		visual.position += Vector3(0.01, 0.02, -0.01)
+		graph.refresh()
+	_check(graph.sampled_local_poses == samples and graph.physical_layer_changes == layer_changes, "continuous platform movement neither resamples static tracks nor toggles collision")
 	motion.active_action = 1
 	motion.sampled_visual_phase = 0.25
 	graph.refresh()
@@ -58,6 +69,7 @@ func _run() -> void:
 	motion.sampled_visual_phase = 0.75
 	graph.refresh()
 	_check(graph.active_boxes[0].center != first, "animated source track invalidates by phase")
+	_check(graph.sampled_local_poses == samples + 2, "animated tracks continue sampling on phase changes")
 	var cached: Array = graph.active_boxes.duplicate(true)
 	graph.invalidate_pose()
 	graph.refresh()
@@ -86,6 +98,38 @@ func _run() -> void:
 	receiver.logic_enabled = true
 	graph.refresh()
 	_check(graph.active_boxes == cached, "receiver reset restores original collider")
+	motion.active_action = 2
+	graph.refresh()
+	_check(graph.active_boxes.is_empty() and graph.physical_body.collision_layer == 0, "action without boxes immediately disables physical slot")
+	motion.active_action = 0
+	graph.refresh()
+	_check(graph.active_boxes.size() == 1 and graph.physical_body.collision_layer == 1, "action with boxes restores physical slot")
+	motion.active_action = 3
+	motion.sampled_visual_phase = 0.25
+	graph.refresh()
+	var old_boxes: Array = graph.active_boxes.duplicate()
+	var old_center: Vector3 = old_boxes[1].center
+	samples = graph.sampled_local_poses
+	var reuses: int = graph.reused_local_poses
+	motion.sampled_visual_phase = 0.75
+	graph.refresh()
+	_check(graph.sampled_local_poses == samples + 1 and graph.reused_local_poses == reuses + 1, "mixed graph samples only its animated local chain")
+	_check(old_boxes[1].center == old_center and graph.active_boxes[1].center != old_center, "state callbacks retain their original pair snapshot")
+	motion.active_action = 0
+	graph.tracks["g001_r0000"]["translation_keys"] = [[0, 0, 0], [200, 0, 0]]
+	graph.invalidate_pose()
+	motion.sampled_visual_phase = 0.25
+	graph.refresh()
+	first = graph.active_boxes[0].center
+	motion.sampled_visual_phase = 0.75
+	graph.refresh()
+	_check(graph.active_boxes[0].center != first, "explicit invalidation reclassifies edited static tracks as animated")
+	graph.tracks["g001_r0000"]["translation_keys"] = [[50, 0, 0]]
+	graph.invalidate_pose()
+	visual.transform = Transform3D(Basis(Vector3.FORWARD, PI / 2.0).scaled(Vector3(2, 3, 4)), Vector3(1, 2, 3))
+	graph.refresh()
+	var expected: Vector3 = visual.global_transform * Vector3(0.5, 0, 0)
+	_check((graph.active_boxes[0].center as Vector3).is_equal_approx(expected), "cached local pose retains rotation and nonuniform world scale")
 	motion.free()
 	visual.queue_free()
 	await process_frame

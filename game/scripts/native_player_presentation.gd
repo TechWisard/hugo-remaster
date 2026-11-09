@@ -75,18 +75,17 @@ func refresh() -> void:
 	# The controller decrements this timer before this render-state update.
 	# Rounding preserves integer source ticks despite floating-point seconds.
 	remaining_ticks = maxi(0, roundi(float(_player.get("_invulnerability_remaining")) * NATIVE_TIMER_HZ))
-	var death: bool = bool(_player.get("_death_playing"))
+	var death: bool = bool(_player.get("_death_state_active")) or bool(_player.get("pending_fatal"))
 	var level: Node = _player.get_parent()
 	if level != null and level.get("health") is int:
 		death = death or int(level.get("health")) <= 0
-	# Current death handling enters the death action immediately. Native lethal
-	# knockback's intermediate +0x4C4 state is documented but not claimed here.
+	# Native +0x4C4 keeps a lethally knocked-back body visible throughout state5.
 	hidden_by_blink = not death and (remaining_ticks & BLINK_MASK) != 0
 	_body.visible = not hidden_by_blink
 	if not using_source_shadow or not is_instance_valid(shadow):
 		return
 	var surface_replacement: bool = is_instance_valid(_animation) \
-		and _animation.current_action.begins_with("surface_death_")
+		and (_animation.current_action.begins_with("surface_death_") or _animation.current_action.begins_with("contact_death_"))
 	support_valid = _update_support()
 	shadow.visible = support_valid and not hidden_by_blink and not surface_replacement
 	if not support_valid:

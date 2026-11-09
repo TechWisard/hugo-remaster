@@ -246,7 +246,7 @@ func _hurt_round_trip() -> void:
 	first.native_controls = true
 	root.add_child(first)
 	await _ticks(8)
-	_check(first.damage_player(1, first.player.global_position, 0.0), "damage enters the real hurt/invulnerability path")
+	_check(first.damage_player(1, first.player.global_position + Vector3.RIGHT, 0.25), "horizontal damage enters the real hurt/invulnerability path")
 	await _ticks(4)
 	_check(first.player.is_hurt and first.player.is_invulnerable, "save is taken during hurt and invulnerability")
 	var saved: Dictionary = _save_and_read(first.run_state(), "hurt")

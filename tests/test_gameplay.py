@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from hugo_assets.binary import FormatError
 from hugo_assets.catalog import Record, Scene
 from hugo_assets.gameplay import GameplayDecoder, godot_position, stable_id
+from test_scene_graph import graph_bytes
 
 
 def record(group, index, kind, size, data=None):
@@ -127,6 +128,36 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(b["entry_events"][0]["event"], 0x22000002)
         self.assertTrue(b["checkpoint_on_collision"])
         self.assertTrue(b["save_world_state_on_entry"])
+        self.assertIsNone(state_machine["contact_death_visual"])
+
+    def test_contact_death_visual_uses_embedded_graph_and_keeps_sound_separate(self):
+        actor = state_fixture()
+        target = record(1, 0, 10301, 420)
+        data = bytearray(actor.data)
+        offset = len(data)
+        data += graph_bytes([[(0, 0)]])
+        struct.pack_into("<I", data, 0x244, offset)
+        struct.pack_into("<f", data, offset + 80 + 12, 2.25)
+        actor = replace(actor, data=bytes(data))
+        result = decoder([actor, target]).state_actor(actor)
+        profile = result["contact_death_visual"]
+        self.assertEqual((profile["group"], profile["record"], profile["graph_offset"]),
+                         (actor.group, actor.index, offset))
+        self.assertEqual(profile["duration_seconds"], 2.25)
+        self.assertEqual(profile["action"], f"contact_death_g002_r0000_o{offset:08x}")
+        self.assertEqual(result["contact_sound_sequence"]["source_field_offset"], 0x248)
+        self.assertEqual(result["contact_sound_sequence"]["cues"], [])
+
+    def test_contact_death_visual_rejects_resource_handle_and_header_overlap(self):
+        actor = state_fixture()
+        target = record(1, 0, 10301, 420)
+        for pointer in (0x80000000, 8, len(actor.data)):
+            with self.subTest(pointer=pointer):
+                data = bytearray(actor.data)
+                struct.pack_into("<I", data, 0x244, pointer)
+                corrupt = replace(actor, data=bytes(data))
+                with self.assertRaises(FormatError):
+                    decoder([corrupt, target]).state_actor(corrupt)
 
     def test_corrupt_packed_arrays_and_invalid_transitions_fail(self):
         original = state_fixture()

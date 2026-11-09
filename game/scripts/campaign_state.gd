@@ -164,6 +164,9 @@ func _read_document(file_path: String) -> Dictionary:
 
 func _clean_run(raw: Dictionary) -> Dictionary:
 	var result: Dictionary = _clean_world(raw)
+	if result.get("player_runtime") is Dictionary:
+		if not result.get("death_pending", false) or int(result.get("health", 1)) != 0:
+			result.player_runtime["pending_fatal"] = false
 	if raw.get("checkpoint_state") is Dictionary:
 		result["checkpoint_state"] = _clean_world(raw.checkpoint_state)
 	return result
@@ -173,6 +176,9 @@ func _clean_world(raw: Dictionary) -> Dictionary:
 	var result: Dictionary = {"collected": [], "defeated": [], "activated": [], "checkpoint_id": "", "elapsed": 0.0}
 	for key: String in ["completed", "finish_rewards_applied", "death_pending"]:
 		result[key] = raw.get(key, false) == true
+	var death_visual: Dictionary = clean_death_visual(raw.get("death_visual", {}))
+	if not death_visual.is_empty():
+		result["death_visual"] = death_visual
 	for key: String in ["collected", "defeated", "activated", "removed_actors", "scope_removed_actors"]:
 		var values: Variant = raw.get(key, [])
 		if values is Array:
@@ -304,11 +310,38 @@ func _player_runtime(raw: Dictionary) -> Dictionary:
 		"attack_recovery_remaining": _number(raw.get("attack_recovery_remaining"), 0.0, 0.0, 4.0),
 		"hurt_remaining": _number(raw.get("hurt_remaining"), 0.0, 0.0, 2.0),
 		"invulnerability_remaining": _number(raw.get("invulnerability_remaining"), 0.0, 0.0, 5.0)}
+	result["native_damage"] = raw.get("native_damage", false) == true
+	result["pending_fatal"] = result.native_damage and raw.get("pending_fatal", false) == true
+	var impulse: Array = _coordinates(raw.get("damage_impulse"), 3)
+	if impulse.is_empty() or impulse.any(func(value: float) -> bool: return absf(value) > 1000.0):
+		impulse = [0.0, 0.0, 0.0]
+	result["damage_impulse"] = impulse
+	if result.native_damage:
+		result["jumping"] = false
+		result["crouching"] = false
+		result["hurt_remaining"] = 0.0
 	var action: Variant = raw.get("visual_action")
 	if action is String and action in ["idle", "walk", "run", "crouch", "crawl", "jump", "jump_moving", "fall", "attack", "hurt", "land"]:
 		result["visual_action"] = action
 		result["visual_phase"] = _number(raw.get("visual_phase"), 0.0, 0.0, 1.0)
 	return result
+
+
+static func clean_death_visual(raw: Variant) -> Dictionary:
+	## Store source identity, never an arbitrary resource path from a save.
+	if not raw is Dictionary or raw.is_empty():
+		return {}
+	var kind: String = str(raw.get("kind", "contact" if str(raw.get("action", "")).begins_with("contact_death_") else "surface"))
+	if kind not in ["surface", "contact"]:
+		return {}
+	var values: Array = [raw.get("group"), raw.get("record"), raw.get("offset", raw.get("graph_offset"))]
+	for index: int in range(values.size()):
+		var value: Variant = values[index]
+		if not (value is int or value is float) or not is_finite(float(value)) or float(value) != floorf(float(value)):
+			return {}
+		if int(value) < (1 if index == 2 else 0) or int(value) > (2147483647 if index == 2 else 65535):
+			return {}
+	return {"kind": kind, "group": int(values[0]), "record": int(values[1]), "offset": int(values[2])}
 
 
 func _coordinates(value: Variant, count: int) -> Array:

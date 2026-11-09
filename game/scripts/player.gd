@@ -10,8 +10,14 @@ signal hurt_received(amount: int)
 signal crouch_changed(crouching: bool)
 signal reset_requested(reason: String)
 signal death_animation_finished
+signal native_fatal_landed
 
 const VisualScript = preload("res://scripts/player_visual.gd")
+## CHugoStateDamage entry/update: 0x403AA0..0x403B3D / 0x403950..0x403A49.
+## Source impulses are per 300-Hz tick; geometry uses the existing 0.01 scale.
+const NATIVE_DAMAGE_HORIZONTAL_SPEED: float = 9.0
+const NATIVE_DAMAGE_VERTICAL_SPEED: float = 12.0
+const NATIVE_DAMAGE_GRAVITY: float = 71.99999839067459
 
 @export_group("Movement")
 @export_range(0.1, 20.0, 0.1) var walk_speed: float = 4.8
@@ -67,7 +73,13 @@ var is_invulnerable: bool:
 		return _invulnerability_remaining > 0.0
 var is_hurt: bool:
 	get:
-		return _hurt_remaining > 0.0
+		return _native_damage_active or _hurt_remaining > 0.0
+var pending_fatal: bool:
+	get:
+		return _native_pending_death
+var in_native_damage: bool:
+	get:
+		return _native_damage_active
 
 var _visual: HugoPlayerVisual
 var _checkpoint_position: Vector3 = Vector3.ZERO
@@ -91,6 +103,7 @@ var _standing_collider_position: Vector3 = Vector3.ZERO
 var _jump_visual_action: String = "jump"
 var _reset_pending: bool = false
 var _death_playing: bool = false
+var _death_state_active: bool = false
 var _death_remaining: float = 0.0
 var _death_action: String = "death"
 var _controls_before_death: bool = true
@@ -103,6 +116,9 @@ var _native_input_magnitude: float = 0.0
 var _native_landing_remaining: float = 0.0
 var _native_surface_response: float = 1.0
 var _native_surface_prevents_standing: bool = false
+var _native_damage_active: bool = false
+var _native_pending_death: bool = false
+var _native_damage_impulse := Vector3.ZERO
 
 
 func set_native_configuration(configuration: Dictionary) -> bool:
@@ -180,12 +196,22 @@ func _physics_process(delta: float) -> void:
 			_death_playing = false
 			death_animation_finished.emit()
 		return
+	if _death_state_active:
+		return
 	if global_position.y < fall_reset_height:
 		_request_reset("fall")
 		return
 	if controls_enabled and Input.is_action_just_pressed("reset"):
 		_request_reset("manual")
 		return
+	# Native pre-event 0x1E079 ends state5 only on its descending floor contact.
+	# Godot supplies that contact; animation duration and invulnerability expiry
+	# never end this flight. A fresh restored body must obtain a real contact.
+	if _native_damage_active and not _fresh_respawn and velocity.y <= 0.0 and is_on_floor():
+		_native_damage_active = false
+		if _native_pending_death:
+			native_fatal_landed.emit()
+			return
 
 	# Floor flags describe the previous move_and_slide() call. Ignore a stale
 	# flag after teleporting or launching a jump, not an upward slope/platform
@@ -208,7 +234,7 @@ func _physics_process(delta: float) -> void:
 	var input_vector: Vector2 = Vector2.ZERO
 	var jump_held: bool = false
 	var speed: float = walk_speed
-	if controls_enabled:
+	if controls_enabled and not _native_damage_active:
 		input_vector = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 		var crouch_pressed: bool = InputMap.has_action("crouch") and Input.is_action_pressed("crouch") and (not using_native_movement or grounded)
 		set_crouching(crouch_pressed)
@@ -322,7 +348,9 @@ func runtime_snapshot() -> Dictionary:
 		"jump_action": _jump_visual_action, "tick_fraction": _native_tick_fraction,
 		"crouching": is_crouching, "landing_remaining": _native_landing_remaining,
 		"attack_remaining": _attack_remaining, "attack_recovery_remaining": _attack_recovery_remaining,
-		"hurt_remaining": _hurt_remaining, "invulnerability_remaining": _invulnerability_remaining}
+		"hurt_remaining": _hurt_remaining, "invulnerability_remaining": _invulnerability_remaining,
+		"native_damage": _native_damage_active, "pending_fatal": _native_pending_death,
+		"damage_impulse": [_native_damage_impulse.x, _native_damage_impulse.y, _native_damage_impulse.z]}
 	if _visual != null and _visual.using_original_animation:
 		result["visual_action"] = _visual.original_animation.current_action
 		result["visual_phase"] = _visual.original_animation.native_phase
@@ -348,6 +376,14 @@ func restore_runtime_state(saved: Dictionary) -> bool:
 	_attack_recovery_remaining = float(saved.get("attack_recovery_remaining", 0.0))
 	_hurt_remaining = float(saved.get("hurt_remaining", 0.0))
 	_invulnerability_remaining = float(saved.get("invulnerability_remaining", 0.0))
+	_native_damage_active = using_native_movement and bool(saved.get("native_damage", false))
+	_native_pending_death = _native_damage_active and bool(saved.get("pending_fatal", false))
+	_native_damage_impulse = _configuration_vector(saved.get("damage_impulse", [0.0, 0.0, 0.0]))
+	if _native_damage_active:
+		_jump_in_progress = false
+		_resume_grounded = false
+		_hurt_remaining = 0.0
+		set_crouching(false)
 	# UI activation must not become a new jump or attack, and physics contacts
 	# belong to the recreated world rather than the saved CharacterBody RID.
 	_jump_buffer_remaining = 0.0
@@ -384,12 +420,16 @@ func respawn() -> void:
 	_invulnerability_remaining = 0.0
 	_reset_pending = false
 	_death_playing = false
+	_death_state_active = false
 	_death_remaining = 0.0
 	_death_action = "death"
 	_native_tick_fraction = 0.0
 	_native_landing_remaining = 0.0
 	_native_surface_response = 1.0
 	_native_surface_prevents_standing = false
+	_native_damage_active = false
+	_native_pending_death = false
+	_native_damage_impulse = Vector3.ZERO
 	if _restore_death_controls:
 		controls_enabled = _controls_before_death
 		_restore_death_controls = false
@@ -418,6 +458,9 @@ func start_attack() -> bool:
 
 func apply_damage(amount: int = 1, knockback: Vector3 = Vector3.ZERO) -> bool:
 	## The world owns health/lives. A successful call emits one damage event.
+	## Native callers pass the source horizontal impulse, not a world velocity.
+	if using_native_movement:
+		return _apply_native_damage(amount, knockback)
 	# Native CHugo uses 600 timer ticks (2 s); damage >= 1000 bypasses it.
 	if amount <= 0 or (is_invulnerable and amount < 1000):
 		return false
@@ -433,11 +476,49 @@ func apply_damage(amount: int = 1, knockback: Vector3 = Vector3.ZERO) -> bool:
 	return true
 
 
+func _apply_native_damage(amount: int, impulse: Vector3) -> bool:
+	if amount <= 0 or _death_state_active or (amount < 1000 and (is_invulnerable or _native_pending_death)):
+		return false
+	# Force death bypasses pending/invulnerability and does not start a new
+	# 600-tick timer. The world immediately enters state6 after HealthBar damage.
+	if amount < 1000:
+		_invulnerability_remaining = invulnerability_duration
+		_native_damage_impulse = Vector3(impulse.x, 0.0, impulse.z) if impulse.is_finite() else Vector3.ZERO
+		if (_native_damage_impulse.x != 0.0 or _native_damage_impulse.z != 0.0) and not is_crouching:
+			# An accepted hit while already in state5 updates its turn direction,
+			# but must not restart the kick, position lift or action phase.
+			if not _native_damage_active:
+				_native_damage_active = true
+				_hurt_remaining = 0.0
+				_attack_remaining = 0.0
+				_attack_recovery_remaining = 0.0
+				_jump_buffer_remaining = 0.0
+				_jump_in_progress = false
+				_native_landing_remaining = 0.0
+				global_position.y += 0.01
+				velocity = _native_damage_impulse * NATIVE_DAMAGE_HORIZONTAL_SPEED
+				velocity.y = NATIVE_DAMAGE_VERTICAL_SPEED
+				if _visual != null and _visual.using_original_animation:
+					_visual.original_animation.set_action("hurt", true)
+	hurt_received.emit(amount)
+	return true
+
+
+func defer_native_fatal_death(impulse: Vector3) -> bool:
+	## 0x4027F4..0x40283A: pending is assigned after entering damage state5.
+	if not using_native_movement or not _native_damage_active or is_crouching \
+			or (impulse.x == 0.0 and impulse.z == 0.0):
+		return false
+	_native_pending_death = true
+	return true
+
+
 func bounce_from_native_surface() -> bool:
 	## 0x403054..0x403094: surviving ground damage enters Jump, not Hurt.
 	## The world calls this only after an accepted, non-lethal surface hit.
-	if not using_native_movement or _death_playing:
+	if not using_native_movement or _death_playing or _native_pending_death:
 		return false
+	_native_damage_active = false
 	_hurt_remaining = 0.0
 	_attack_remaining = 0.0
 	set_crouching(false)
@@ -462,9 +543,11 @@ func play_death(action: String = "death") -> float:
 		_controls_before_death = controls_enabled
 		_restore_death_controls = true
 	controls_enabled = false
+	_death_state_active = true
 	_reset_pending = true
 	_attack_remaining = 0.0
 	_hurt_remaining = 0.0
+	_native_damage_active = false
 	_jump_buffer_remaining = 0.0
 	velocity = Vector3.ZERO
 	_death_remaining = 0.3333333
@@ -484,6 +567,10 @@ func play_death(action: String = "death") -> float:
 func play_death_for_surface(source_group: int, source_record: int, graph_offset: int) -> float:
 	var action: String = "surface_death_g%03d_r%04d_o%08x" % [source_group, source_record, graph_offset]
 	return play_death(action)
+
+
+func play_death_for_contact(source_group: int, source_record: int, graph_offset: int) -> float:
+	return play_death("contact_death_g%03d_r%04d_o%08x" % [source_group, source_record, graph_offset])
 
 
 func get_native_visual_action() -> int:
@@ -574,6 +661,9 @@ func _start_jump() -> void:
 
 
 func _native_move(move_direction: Vector3, grounded: bool, delta: float) -> void:
+	if _native_damage_active:
+		_native_damage_move(delta)
+		return
 	_native_input_magnitude = minf(move_direction.length(), 1.0)
 	if grounded and _native_input_magnitude > 0.0:
 		_native_landing_remaining = 0.0
@@ -642,6 +732,28 @@ func _native_move(move_direction: Vector3, grounded: bool, delta: float) -> void
 				_visual.original_animation.set_action("land", true)
 
 
+func _native_damage_move(delta: float) -> void:
+	var rate: float = float(native_configuration["native_timer_hz"])
+	_native_tick_fraction += delta * rate
+	var ticks: int = int(floor(_native_tick_fraction + 0.000001))
+	_native_tick_fraction = maxf(0.0, _native_tick_fraction - float(ticks))
+	var displacement := Vector3.ZERO
+	for tick: int in range(ticks):
+		displacement += velocity / rate
+		velocity.y -= NATIVE_DAMAGE_GRAVITY / rate
+	var final_velocity: Vector3 = velocity
+	var commanded_velocity: Vector3 = displacement / delta if delta > 0.0 else Vector3.ZERO
+	velocity = commanded_velocity
+	move_and_slide()
+	velocity = final_velocity + velocity - commanded_velocity
+	for index: int in range(get_slide_collision_count()):
+		var normal: Vector3 = get_slide_collision(index).get_normal()
+		if velocity.dot(normal) < 0.0:
+			velocity = velocity.slide(normal)
+	if is_on_floor():
+		velocity.y = 0.0
+
+
 func _camera_relative_direction(input_vector: Vector2) -> Vector3:
 	if input_vector.length_squared() < 0.0001:
 		return Vector3.ZERO
@@ -662,6 +774,8 @@ func _camera_relative_direction(input_vector: Vector2) -> Vector3:
 func _update_visual(move_direction: Vector3, delta: float) -> void:
 	if not is_instance_valid(visual_root):
 		return
+	if _native_damage_active:
+		move_direction = -_native_damage_impulse.normalized()
 	if move_direction.length_squared() > 0.0001:
 		var target_yaw: float = atan2(-move_direction.x, -move_direction.z)
 		var turn_weight: float = 1.0 - exp(-visual_turn_speed * delta)

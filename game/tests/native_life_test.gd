@@ -31,9 +31,9 @@ func _run() -> void:
 	var save := CampaignState.new()
 	save.set_run(str(entry.id), level.run_state())
 	var interrupted: Dictionary = save.runs[entry.id].duplicate(true)
-	_check(interrupted.death_pending and interrupted.lives == 3, "save commits the life before the deferred death starts")
+	_check(interrupted.death_pending and interrupted.lives == 3, "save retains the life committed by lethal HealthBar damage")
 	await _ticks(2)
-	_check(level._death_in_progress and level.lives == 3, "death animation spends exactly one life")
+	_check(level._death_in_progress and level.lives == 3, "death animation preserves the single committed life cost")
 	_check(level.run_state().lives == 3, "saving during the animation does not spend a second life")
 	for i: int in range(300):
 		if not level._death_in_progress:

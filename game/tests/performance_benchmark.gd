@@ -6,10 +6,12 @@ extends SceneTree
 const Probe = preload("res://tests/performance_level_probe.gd")
 const Graphics = preload("res://scripts/native_graphics_settings.gd")
 const ResourceData = preload("res://scripts/native_resource_data.gd")
+const Graph = preload("res://scripts/native_graph_colliders.gd")
 var output_path: String = "user://performance_benchmark.json"
 var selected: String = ""
 var sample_frames: int = 180
 var rounds: int = 3
+var random_seed: int = 24680
 var rows: Array[Dictionary] = []
 var failures: Array[String] = []
 
@@ -24,6 +26,8 @@ func _initialize() -> void:
 			sample_frames = clampi(int(arg.trim_prefix("--benchmark-frames=")), 30, 3600)
 		elif arg.begins_with("--benchmark-rounds="):
 			rounds = clampi(int(arg.trim_prefix("--benchmark-rounds=")), 1, 5)
+		elif arg.begins_with("--benchmark-seed="):
+			random_seed = int(arg.trim_prefix("--benchmark-seed="))
 	_run.call_deferred()
 
 
@@ -45,6 +49,9 @@ func _run() -> void:
 		for entry: Dictionary in catalog.get("levels", []):
 			if not selected.is_empty() and str(entry.id) != selected:
 				continue
+			# Reset each scene so repeated rounds compare the same authored RNG
+			# state. This does not control operating-system scheduling or GPU work.
+			seed(random_seed)
 			var level: OriginalLevel = Probe.new()
 			level.entry = entry
 			var json_start: int = Time.get_ticks_usec()
@@ -59,6 +66,7 @@ func _run() -> void:
 				failures.append(str(entry.id) + " failed initialization")
 			for tick: int in range(60):
 				await process_frame
+			var collider_before: Dictionary = _collider_counters(level)
 			var frame_times := PackedFloat64Array()
 			var process_times := PackedFloat64Array()
 			var physics_times := PackedFloat64Array()
@@ -72,14 +80,16 @@ func _run() -> void:
 				physics_times.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
 			var row: Dictionary = {"chapter": entry.id, "round": round_index,
 				"json_ms": json_ms, "ready_ms": load_ms, "stage_ms": level.get("stage_ms"),
-				"frame_wall_ms": _summary(frame_times), "engine_process_ms": _summary(process_times),
+				"frame_wall_ms": _summary(frame_times), "frame_samples_ms": frame_times,
+				"engine_process_ms": _summary(process_times),
 				"engine_physics_ms": _summary(physics_times), "memory_static_bytes": OS.get_static_memory_usage(),
 				"render_video_memory_bytes": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED),
 				"render_draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 				"objects": Performance.get_monitor(Performance.OBJECT_COUNT),
 				"resources": Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
 				"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
-				"active_actors": level.state_actors.size(), "player_on_floor": level.player.is_on_floor()}
+				"active_actors": level.state_actors.size(), "player_on_floor": level.player.is_on_floor(),
+				"collider_before": collider_before, "collider_after": _collider_counters(level)}
 			rows.append(row)
 			print("PERFORMANCE_CHAPTER ", JSON.stringify(row))
 			level.queue_free()
@@ -90,6 +100,7 @@ func _run() -> void:
 		"adapter": RenderingServer.get_video_adapter_name(), "headless_cpu_only": DisplayServer.get_name() == "headless",
 		"window": [root.size.x, root.size.y], "msaa": root.msaa_3d, "render_scale": root.scaling_3d_scale,
 		"samples_per_chapter": sample_frames, "warmup_frames": 60, "rounds": rounds,
+		"rng_seed_per_chapter": random_seed,
 		"scene": "normal spawn, idle physics, no teleport, fixed 60 Hz simulation",
 		"frame_metric": "wall intervals; includes scheduling/rendering; not a hardware-independent FPS promise",
 		"engine_monitor_warning": "Godot monitor snapshots update periodically and can include preceding loading; use wall samples for interval comparisons",
@@ -107,6 +118,7 @@ func _run() -> void:
 
 
 func _summary(values: PackedFloat64Array) -> Dictionary:
+	values = values.duplicate()
 	values.sort()
 	var total: float = 0.0
 	for value: float in values:
@@ -117,3 +129,38 @@ func _summary(values: PackedFloat64Array) -> Dictionary:
 
 func _json(path: String) -> Dictionary:
 	return ResourceData.read(path)
+
+
+func _collider_counters(level: OriginalLevel) -> Dictionary:
+	# Snapshots are outside the timed frame loop. Older exported builds expose
+	# fewer counters; report only fields actually present on that class.
+	var peers: Array = Graph._spaces.get(level.get_instance_id(), [])
+	var result: Dictionary = {"peers": peers.size(), "active": 0,
+		"animated_active": 0, "physical_active": 0, "active_states": []}
+	if peers.is_empty():
+		return result
+	var names: Array[String] = []
+	var wanted: Array[String] = ["refreshed_poses", "reused_poses", "sampled_local_poses",
+		"reused_local_poses", "physical_layer_changes"]
+	for property: Dictionary in (peers[0] as Node).get_property_list():
+		var name: String = str(property.name)
+		if name in wanted:
+			names.append(name)
+			result[name] = 0
+	for peer: NativeGraphColliders in peers:
+		for name: String in names:
+			result[name] = int(result[name]) + int(peer.get(name))
+		if peer.active_boxes.is_empty():
+			continue
+		result.active += 1
+		var animated: bool = false
+		for item: Dictionary in peer._actions.get(peer.active_action, []):
+			for track: Dictionary in item.chain:
+				animated = animated or (track.get("translation_keys", []) as Array).size() > 1 or (track.get("rotation_keys", []) as Array).size() > 1
+		var physical: bool = is_instance_valid(peer.physical_body) and peer.physical_body.collision_layer != 0
+		result.animated_active += int(animated)
+		result.physical_active += int(physical)
+		result.active_states.append({"id": str(peer.source.get("id", "player")),
+			"action": peer.active_action, "phase": peer.sampled_phase, "animated": animated,
+			"physical": physical, "boxes": peer.active_boxes.size()})
+	return result

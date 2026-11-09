@@ -15,6 +15,7 @@ from .binary import Reader, require
 from .catalog import Catalog, Record
 from .mdic import write_json
 from .player import decode_player_configuration
+from .scene_graph import parse_graph
 from .speakers import decode_sound_settings, decode_speaker
 
 
@@ -244,6 +245,21 @@ class GameplayDecoder:
 
     def state_actor(self, record: Record) -> dict:
         reader = Reader(record.data, record.label)
+        death_visual = None
+        graph_offset = reader.u32(0x244)
+        if graph_offset:
+            # This is an owner-relative embedded graph, not a resource handle.
+            # CSimpleStateActor relocates it at 0x4082A2..0x4082BD and sends it
+            # in damage payload+0x14; Hugo uses state zero at death entry.
+            graph = parse_graph(record, graph_offset)
+            death_visual = {
+                "group": record.group, "record": record.index,
+                "graph_offset": graph_offset, "source_field_offset": 0x244,
+                "action": f"contact_death_g{record.group:03d}_r{record.index:04d}_o{graph_offset:08x}",
+                "duration_seconds": graph.states[0].duration,
+                "meaning_confidence": "native_damage_payload_death_graph_verified",
+                "evidence_va": ["0x004082a2", "0x00408c6c", "0x004026b7", "0x00403c36"],
+            }
         initial_phases = _finite(reader.unpack("<2f", 0x1C), record.label)
         start, count = self.packed_array(record, 0xAC, 72)
         require(count > 0, f"{record.label}: missing native state table")
@@ -298,6 +314,7 @@ class GameplayDecoder:
                 "difficulty_controller": self.ref_field(record, 0x25C),
                 "damage_event": 0x22000003 if reader.u32(0x260) else 0x22000012,
                 "persistent_checkpoint_item": bool(reader.u32(0x264)),
+                "contact_death_visual": death_visual,
                 "contact_sound_sequence": self.sound_sequence(record, 0x248),
                 "checkpoint_states": [s["index"] for s in states if s["checkpoint_on_collision"]],
                 "meaning_confidence": "native_state_table_and_dispatch_verified",

@@ -80,8 +80,12 @@ var _ready_ok: bool = false
 var _checkpoint_state: Dictionary = {}
 var _restoring_world: bool = false
 var _death_in_progress: bool = false
+var _death_life_committed: bool = false
 var _collecting: Dictionary = {}
 var _death_surface: Dictionary = {}
+var _death_sound_sequence: Dictionary = {}
+var _death_sound_cues_played: Dictionary = {}
+var _death_sound_position := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -104,12 +108,7 @@ func _ready() -> void:
 		scene_bounds = AABB(_vector(bounds_value[0]), _vector(bounds_value[1]) - _vector(bounds_value[0]))
 	_restore_flags()
 	finish_rewards_applied = bool(restored_run.get("finish_rewards_applied", false))
-	var health_bases: Array = native_rules.get("maximum_health_base_by_difficulty", [11, 10, 8])
-	max_health = int(health_bases[clampi(difficulty, 0, 2)]) + qualified_level_count
-	health = clampi(int(restored_run.get("health", max_health)), 1, max_health)
-	lives = clampi(int(restored_run.get("lives", starting_lives)), 0, 20)
-	if lives <= 0:
-		health = 0
+	_restore_health_and_lives()
 	_build_environment()
 	_build_collision()
 	spawn_point = _find_spawn()
@@ -133,16 +132,10 @@ func _ready() -> void:
 		_checkpoint_state = restored_run.checkpoint_state.duplicate(true)
 	else:
 		save_native_world()
-	if bool(restored_run.get("death_pending", false)) and lives > 0:
-		# A modern save can be taken during a native death animation. Its life
-		# cost is already committed, so resume the checkpoint without charging again.
-		restore_native_world()
+	_restore_death_after_load()
 	_update_hud()
 	hud.toast_key("chapter.%d" % int(entry.get("main_group", -1)), {}, 4.0)
 	_ready_ok = true
-	if lives <= 0:
-		player.controls_enabled = false
-		hud.game_over()
 	ready_to_play.emit()
 	if bool(restored_run.get("completed", false)):
 		finish_level.call_deferred()
@@ -164,6 +157,7 @@ func _physics_process(delta: float) -> void:
 	_update_collecting(delta)
 	_damage_remaining = maxf(0.0, _damage_remaining - delta)
 	_dispatch_events()
+	_update_death_sound_cues()
 	_apply_surface_rules()
 	for trigger: Dictionary in _stay_triggers:
 		var area: Area3D = trigger.area
@@ -252,6 +246,7 @@ func _create_player() -> void:
 	if player.has_signal("reset_requested"):
 		player.set("native_reset_handling", true)
 		player.connect("reset_requested", _on_reset_requested)
+	player.native_fatal_landed.connect(_begin_death)
 	camera_rig = CameraScript.new()
 	camera_rig.target_height = 1.05 * size_ratio
 	camera_rig.orbit_distance = 6.5 * size_ratio
@@ -698,7 +693,7 @@ func _update_collecting(delta: float) -> void:
 		var pickup: Dictionary = pending.native.get("pickup", {})
 		diamonds += maxi(int(pickup.get("diamonds", 0)), 0)
 		lives = mini(lives + int(pickup.get("lives", 0)), 20)
-		if bool(pickup.get("health", false)):
+		if bool(pickup.get("health", false)) and not _death_life_committed:
 			var amounts: Array = pickup.get("healing_by_difficulty", [20, 10, 5])
 			health = mini(health + int(amounts[clampi(difficulty, 0, 2)]), max_health)
 		_hide_owner(id)
@@ -719,9 +714,9 @@ func _on_respawn() -> void:
 
 
 func _on_reset_requested(reason: String) -> void:
-	if completed or _death_in_progress or lives <= 0:
+	if completed or _death_in_progress or (lives <= 0 and not _death_life_committed):
 		return
-	if reason == "fall":
+	if reason == "fall" or lives <= 0:
 		_begin_death.call_deferred()
 	else:
 		restore_native_world.call_deferred()
@@ -742,10 +737,10 @@ func run_state() -> Dictionary:
 	var actor_states: Dictionary = {}
 	for id: String in state_actors:
 		actor_states[id] = (state_actors[id] as NativeStateActor).snapshot()
-	var pending_death: bool = _death_in_progress or (health <= 0 and lives > 0 and not completed)
+	var pending_death: bool = _death_life_committed or _death_in_progress or (health <= 0 and lives > 0 and not completed)
 	var saved_lives: int = lives
-	if pending_death and not _death_in_progress:
-		# damage_player saves before its deferred death handler spends the life.
+	if pending_death and not _death_in_progress and not _death_life_committed:
+		# Compatibility for a reset requested before its deferred handler runs.
 		saved_lives = maxi(lives - 1, 0)
 	return {"collected": collected.keys(), "defeated": defeated.keys(), "activated": activated.keys(),
 		"completed": completed, "finish_rewards_applied": finish_rewards_applied,
@@ -753,7 +748,7 @@ func run_state() -> Dictionary:
 		"health": health, "lives": saved_lives, "diamonds": diamonds, "moved": _moved_owners,
 		"attack_serial": player.attack_serial, "player_runtime": player.runtime_snapshot(),
 		"damage_remaining": _damage_remaining,
-		"death_pending": pending_death,
+		"death_pending": pending_death, "death_visual": _death_surface.duplicate(),
 		"player_position": _array(player.global_position), "player_facing": player.visual_root.global_rotation.y,
 		"checkpoint_state": _checkpoint_state,
 		"scopes": scopes.snapshot() if is_instance_valid(scopes) else {},
@@ -822,7 +817,11 @@ func _dispatch_events() -> void:
 		elif target == str(gameplay.get("health_bar", {}).get("id", "")):
 			match code:
 				0x22000005: diamonds += int(param1)
-				0x22000006: health = mini(health + [20, 10, 5][difficulty], max_health)
+				0x22000006:
+					# HealthBar's dead flag rejects healing throughout pending state5
+					# and state6. Diamond/life events have independent source rules.
+					if not _death_life_committed:
+						health = mini(health + [20, 10, 5][difficulty], max_health)
 				0x22000007: lives = clampi(lives + int(param1), 0, 20)
 				0x22000040: finish_level()
 		elif target == str(gameplay.get("camera", {}).get("id", "")):
@@ -856,7 +855,9 @@ func _restore_checkpoint() -> void:
 		if at.is_finite() and scene_bounds.grow(40.0).has_point(at):
 			player.global_position = at
 			player.visual_root.global_rotation.y = float(restored_run.get("player_facing", 0.0))
-			if not bool(restored_run.get("death_pending", false)) and not bool(restored_run.get("completed", false)) and lives > 0:
+			var pending_flight: bool = _saved_pending_fatal()
+			if (not bool(restored_run.get("death_pending", false)) or pending_flight) \
+					and not bool(restored_run.get("completed", false)) and (lives > 0 or pending_flight):
 				if player.restore_runtime_state(restored_run.get("player_runtime", {})):
 					_damage_remaining = float(restored_run.get("damage_remaining", 0.0))
 			camera_rig.snap_to_target()
@@ -864,6 +865,34 @@ func _restore_checkpoint() -> void:
 		diamonds = maxi(int(restored_run.diamonds), 0)
 	if restored_run.get("camera") is Dictionary:
 		camera_rig.restore_native_checkpoint(restored_run.camera)
+
+
+func _saved_pending_fatal() -> bool:
+	var runtime: Dictionary = restored_run.get("player_runtime", {})
+	return bool(restored_run.get("death_pending", false)) and int(restored_run.get("health", 1)) == 0 \
+		and runtime.get("native_damage", false) == true and runtime.get("pending_fatal", false) == true
+
+
+func _restore_health_and_lives() -> void:
+	var health_bases: Array = native_rules.get("maximum_health_base_by_difficulty", [11, 10, 8])
+	max_health = int(health_bases[clampi(difficulty, 0, 2)]) + qualified_level_count
+	health = clampi(int(restored_run.get("health", max_health)), 1, max_health)
+	lives = clampi(int(restored_run.get("lives", starting_lives)), 0, 20)
+	_death_life_committed = bool(restored_run.get("death_pending", false))
+	if lives <= 0 or _saved_pending_fatal():
+		health = 0
+	_death_surface = CampaignState.clean_death_visual(restored_run.get("death_visual", {}))
+
+
+func _restore_death_after_load() -> void:
+	if _death_life_committed and not (player.pending_fatal and player.in_native_damage) and lives > 0:
+		# Legacy v2 deaths and saves taken in state6 keep their existing checkpoint
+		# recovery. A live pending state5 flight instead resumes its saved momentum.
+		restore_native_world()
+	if lives <= 0 and not (player.pending_fatal and player.in_native_damage):
+		health = 0
+		player.controls_enabled = false
+		hud.game_over()
 
 
 func save_native_world() -> void:
@@ -902,6 +931,9 @@ func restore_native_world() -> void:
 	_event_queue.clear()
 	_collecting.clear()
 	_death_surface.clear()
+	_death_sound_sequence.clear()
+	_death_sound_cues_played.clear()
+	_death_life_committed = false
 	if is_instance_valid(effects):
 		effects.reset_native_world()
 	collected.clear()
@@ -942,34 +974,80 @@ func restore_native_world() -> void:
 	_save_progress()
 
 
-func damage_player(amount: int, origin: Vector3, knockback: float = 1.0, event_code: int = 0x22000003) -> bool:
-	if amount <= 0 or completed or lives <= 0 or (_damage_remaining > 0.0 and amount < 1000) or _death_in_progress:
+func damage_player(amount: int, origin: Vector3, knockback: float = 1.0, event_code: int = 0x22000003,
+		death_visual: Dictionary = {}, death_sound_sequence: Dictionary = {}) -> bool:
+	if amount <= 0 or completed or (lives <= 0 and not (player.pending_fatal and player.in_native_damage)) \
+			or (_damage_remaining > 0.0 and amount < 1000) or _death_in_progress:
 		return false
 	var away: Vector3 = player.global_position - origin
 	away.y = 0.0
-	if away.length_squared() > 0.01:
-		away = away.normalized() * knockback * 3.0
+	if away.is_finite() and is_finite(knockback) and away.length_squared() > 0.0:
+		away = away.normalized() * knockback
+	else:
+		away = Vector3.ZERO
+	if not player.using_native_movement:
+		away *= 3.0
 	if player.has_method("apply_damage") and not player.call("apply_damage", amount, away):
 		return false
-	_damage_remaining = 1.0
+	if amount < 1000 or not player.using_native_movement:
+		_damage_remaining = 1.0
 	health = maxi(health - amount - (difficulty if event_code == 0x22000003 else 0), 0)
+	if health <= 0 or amount >= 1000:
+		# HealthBar 0x429136..0x429155 commits the life at the lethal hit, before
+		# pending knockback lands. Further force hits cannot charge it again.
+		_commit_death_life()
+		_death_surface = CampaignState.clean_death_visual(death_visual)
+		if amount >= 1000:
+			_death_sound_sequence = death_sound_sequence.duplicate(true)
+			_death_sound_position = player.global_position
+		if amount >= 1000 or not player.defer_native_fatal_death(away):
+			_begin_death()
+	_save_progress()
+	return true
+
+
+func _commit_death_life() -> void:
+	if not _death_life_committed:
+		lives = maxi(lives - 1, 0)
+		_death_life_committed = true
+	health = 0
+
+
+func _damage_from_native_surface(amount: int, death_visual: Dictionary) -> bool:
+	# 0x403008..0x403094 calls HealthBar directly, then enters Jump or Death.
+	# It does not run CHugo's contact-hit branch, create its 600-tick timer,
+	# or treat a large raw amount as a separate force-death instruction.
+	if amount <= 0 or completed or lives <= 0 or _death_life_committed or _death_in_progress \
+			or player.pending_fatal or player.is_invulnerable:
+		return false
+	health = maxi(health - amount - difficulty, 0)
+	player.hurt_received.emit(amount)
 	if health <= 0:
-		_begin_death.call_deferred()
+		_commit_death_life()
+		_death_surface = CampaignState.clean_death_visual(death_visual)
+		_begin_death()
+	else:
+		player.bounce_from_native_surface()
 	_save_progress()
 	return true
 
 
 func _begin_death() -> void:
-	if _death_in_progress or completed or lives <= 0:
+	if _death_in_progress or completed or (lives <= 0 and not _death_life_committed):
 		return
 	_death_in_progress = true
-	lives = maxi(lives - 1, 0)
+	_commit_death_life()
 	if player.has_method("play_death"):
 		var duration: float
 		if not _death_surface.is_empty():
-			duration = player.play_death_for_surface(int(_death_surface.group), int(_death_surface.record), int(_death_surface.offset))
+			if _death_surface.kind == "contact":
+				duration = player.play_death_for_contact(int(_death_surface.group), int(_death_surface.record), int(_death_surface.offset))
+			else:
+				duration = player.play_death_for_surface(int(_death_surface.group), int(_death_surface.record), int(_death_surface.offset))
 		else:
 			duration = float(player.call("play_death"))
+		_death_sound_cues_played.clear()
+		_update_death_sound_cues()
 		await get_tree().create_timer(maxf(duration, 0.01), false).timeout
 	player.controls_enabled = false
 	if lives == 0:
@@ -982,9 +1060,22 @@ func _begin_death() -> void:
 		restore_native_world()
 
 
+func _update_death_sound_cues() -> void:
+	if not _death_in_progress or _death_sound_sequence.is_empty():
+		return
+	var phase: float = player.get_native_visual_phase()
+	var cues: Array = _death_sound_sequence.get("cues", [])
+	for index: int in range(cues.size()):
+		var cue: Dictionary = cues[index]
+		if _death_sound_cues_played.has(index) or phase < float(cue.get("normalized_phase", 0.0)):
+			continue
+		_death_sound_cues_played[index] = true
+		play_native_sound(cue.get("sound", {}), _death_sound_position)
+
+
 func _apply_surface_rules() -> void:
 	player.set_native_surface()
-	if not player.is_on_floor() or _death_in_progress or lives <= 0:
+	if not player.is_on_floor():
 		return
 	var query := PhysicsRayQueryParameters3D.create(player.global_position + Vector3.UP * 0.25,
 		player.global_position - Vector3.UP * 0.65, 1, [player.get_rid()])
@@ -1007,12 +1098,9 @@ func _apply_surface_rules() -> void:
 			int(surface.get("movement_constraint_raw", 0)) != 0)
 		var damage: int = int(surface.get("ground_damage", 0))
 		if damage > 0:
-			if damage_player(damage, hit.position, 0.0, 0x22000003):
-				if health > 0:
-					player.bounce_from_native_surface()
-				elif int(surface.get("death_visual_offset", 0)) > 0:
-					_death_surface = {"group": owner.source.group, "record": owner.source.record,
-						"offset": int(surface.death_visual_offset)}
+			var death_visual: Dictionary = {"kind": "surface", "group": owner.source.group,
+				"record": owner.source.record, "offset": int(surface.get("death_visual_offset", 0))}
+			_damage_from_native_surface(damage, death_visual)
 		break
 
 

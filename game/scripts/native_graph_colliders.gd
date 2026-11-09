@@ -33,6 +33,9 @@ var _cached_transform := Transform3D.IDENTITY
 var _cached_physical_flags: int = 0
 var refreshed_poses: int = 0
 var reused_poses: int = 0
+var sampled_local_poses: int = 0
+var reused_local_poses: int = 0
+var physical_layer_changes: int = 0
 static var _spaces: Dictionary = {}
 
 
@@ -56,13 +59,15 @@ func _ready() -> void:
 			if not low.is_finite() or not high.is_finite() or low.x > high.x or low.y > high.y or low.z > high.z:
 				continue
 			var chain: Array[Dictionary] = []
+			var node_animated: bool = false
 			for reference: Dictionary in item.get("transform_chain", []):
 				var key: String = "g%03d_r%04d" % [int(reference.group), int(reference.record)]
 				var track: Dictionary = tracks.get(key, {})
 				if not track.is_empty():
 					chain.append(track)
-					animated = animated or (track.get("translation_keys", []) as Array).size() > 1 \
+					node_animated = node_animated or (track.get("translation_keys", []) as Array).size() > 1 \
 						or (track.get("rotation_keys", []) as Array).size() > 1
+			animated = animated or node_animated
 			nodes.append({"node_index": int(item.get("node_index", 0)),
 				"source_node_offset": int(item.get("source_node_offset", 0)),
 				"graph_record": item.get("graph_record", {}),
@@ -70,7 +75,7 @@ func _ready() -> void:
 				"receive_mask": int(item.get("collision_mask_b", 0)),
 				"owner_graph": _is_owner_graph(item.get("graph_record", {})), "physical_slot": false,
 				"local_center": (low + high) * 0.5,
-				"half_extents": (high - low) * 0.5, "chain": chain})
+				"half_extents": (high - low) * 0.5, "chain": chain, "animated": node_animated})
 		# 0x415f42 skips NULL graph boxes before constructing the packed collider
 		# array. Its child0 can therefore be graph node1, node2, etc.
 		var first_node: Dictionary = {}
@@ -116,10 +121,10 @@ func _physics_process(_delta: float) -> void:
 
 func refresh() -> void:
 	if not enabled or sampler == null:
-		invalidate_pose()
+		_clear_world_pose()
 		return
 	if is_instance_valid(receiver) and receiver.has_method("is_logic_enabled") and not receiver.call("is_logic_enabled"):
-		invalidate_pose()
+		_clear_world_pose()
 		return
 	var base := Transform3D.IDENTITY
 	if is_instance_valid(player):
@@ -128,13 +133,13 @@ func refresh() -> void:
 		base = player.call("get_native_visual_transform") as Transform3D
 	elif is_instance_valid(owner_visual):
 		if not owner_visual.is_visible_in_tree():
-			invalidate_pose()
+			_clear_world_pose()
 			return
 		active_action = motion.active_action if is_instance_valid(motion) else 0
 		sampled_phase = motion.sampled_visual_phase if is_instance_valid(motion) else 0.0
 		base = owner_visual.global_transform
 	else:
-		invalidate_pose()
+		_clear_world_pose()
 		return
 	var physical_flags: int = int(receiver.get("physical_flags")) if is_instance_valid(receiver) and is_instance_valid(owner_visual) else 0
 	var relevant_phase: float = sampled_phase if bool(_action_has_animated_boxes.get(active_action, false)) else 0.0
@@ -145,12 +150,12 @@ func refresh() -> void:
 		and base == _cached_transform and physical_flags == _cached_physical_flags:
 		reused_poses += 1
 		return
-	invalidate_pose()
+	# The physical body remains registered while an active pose moves. Its
+	# layer changes only when the finished source state actually enables or
+	# disables slot0; a temporary 0 -> 1 cycle needlessly rebuilds broadphase.
+	_clear_world_pose(false)
 	for item: Dictionary in _actions.get(active_action, []):
-		var pose := Transform3D.IDENTITY
-		for track: Dictionary in item.chain:
-			pose = pose * sampler.sample_native_transform(track, sampled_phase)
-		var world_pose: Transform3D = base * sampler.to_godot_transform(pose)
+		var world_pose: Transform3D = base * _local_pose(item)
 		var box: Dictionary = make_box(world_pose, item.local_center, item.half_extents)
 		box["category"] = item.category
 		box["receive_mask"] = item.receive_mask
@@ -165,7 +170,7 @@ func refresh() -> void:
 		_category_union |= int(item.category)
 		_receive_union |= int(item.receive_mask)
 		_bounds = box.aabb if active_boxes.size() == 1 else _bounds.merge(box.aabb)
-	_sync_physical_body()
+	_sync_physical_body(physical_flags)
 	_cached_action = active_action
 	_cached_phase = relevant_phase
 	_cached_transform = base
@@ -175,13 +180,48 @@ func refresh() -> void:
 
 
 func invalidate_pose() -> void:
-	## Also available to diagnostic tools which deliberately replace bound tracks.
+	## Explicitly resample bound tracks after diagnostic edits. Normal world
+	## movement/visibility only invalidates world boxes, not immutable local data.
+	for action: int in _actions:
+		var animated: bool = false
+		for item: Dictionary in _actions[action]:
+			item.erase("static_pose")
+			item.animated = false
+			for track: Dictionary in item.chain:
+				item.animated = bool(item.animated) or (track.get("translation_keys", []) as Array).size() > 1 \
+					or (track.get("rotation_keys", []) as Array).size() > 1
+			animated = animated or bool(item.animated)
+		_action_has_animated_boxes[action] = animated
+	_clear_world_pose()
+
+
+func _local_pose(item: Dictionary) -> Transform3D:
+	if item.has("static_pose"):
+		reused_local_poses += 1
+		return item.static_pose as Transform3D
+	var pose := Transform3D.IDENTITY
+	for track: Dictionary in item.chain:
+		pose = pose * sampler.sample_native_transform(track, sampled_phase)
+	pose = sampler.to_godot_transform(pose)
+	if not bool(item.animated):
+		item["static_pose"] = pose
+	sampled_local_poses += 1
+	return pose
+
+
+func _clear_world_pose(disable_physical: bool = true) -> void:
 	_pose_cached = false
 	active_boxes.clear()
 	_category_union = 0
 	_receive_union = 0
-	if is_instance_valid(physical_body) and physical_body.collision_layer != 0:
-		physical_body.collision_layer = 0
+	if disable_physical:
+		_set_physical_layer(0)
+
+
+func _set_physical_layer(layer: int) -> void:
+	if is_instance_valid(physical_body) and physical_body.collision_layer != layer:
+		physical_body.collision_layer = layer
+		physical_layer_changes += 1
 
 
 func _is_owner_graph(reference: Dictionary) -> bool:
@@ -189,12 +229,14 @@ func _is_owner_graph(reference: Dictionary) -> bool:
 		and int(reference.get("record", -1)) == int(source.source_record))
 
 
-func _sync_physical_body() -> void:
+func _sync_physical_body(physical_flags: int) -> void:
 	if not is_instance_valid(receiver) or not is_instance_valid(owner_visual):
+		_set_physical_layer(0)
 		return
 	# Native wrapper is attached to packed CCharacterCollD child0, not a union.
 	# 0x41a8c1 tests flags as nonzero; bits8/16 do not distinguish floor/wall.
-	if (int(receiver.get("physical_flags")) & 0x18) == 0:
+	if (physical_flags & 0x18) == 0:
+		_set_physical_layer(0)
 		return
 	for box: Dictionary in active_boxes:
 		if not box.physical_slot:
@@ -216,8 +258,9 @@ func _sync_physical_body() -> void:
 			_physical_shape.position = box.local_center
 		if physical_body.global_transform != box.transform:
 			physical_body.global_transform = box.transform
-		physical_body.collision_layer = 1
+		_set_physical_layer(1)
 		return
+	_set_physical_layer(0)
 
 
 static func _test_pair(a: NativeGraphColliders, b: NativeGraphColliders) -> void:

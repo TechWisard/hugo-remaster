@@ -346,6 +346,7 @@ def export_hugo_shadow(catalog: Catalog, output: Path, owner: Record) -> dict:
             floor_solver_fully_recovered=False,
             visibility=dict(
                 shared_with_primary_visual=True, hide_during_surface_death_replacement=True,
+                hide_during_contact_death_replacement=True,
                 blink_timer_field=0x370, blink_delta_ticks_field=0x368,
                 blink_timer_update="max(0, remaining_ticks - delta_ticks)", blink_mask=0x20,
                 blink_hidden_condition="(remaining_ticks & 0x20) != 0 and actor_0x4C4 == 0 and state != 6",
@@ -382,6 +383,7 @@ def export_animations(catalog: Catalog, output: Path) -> dict:
     clips = {}
     action_bindings = _binding_manifest()
     surface_deaths = {}
+    contact_deaths = {}
     bind_points = []
     files = {}
 
@@ -506,6 +508,44 @@ def export_animations(catalog: Catalog, output: Path) -> dict:
                                               record=segment.index, graph_offset=graph_base,
                                               surface_types=[surface_index],
                                               duration_seconds=state.duration)
+    # State actors can supply the same player-replacement graph through damage
+    # payload+0x14. Their +0x248 object is a sound sequence, not another visual.
+    # Keep this profile separate from both ordinary actions and surface deaths.
+    for scene in catalog.scenes.values():
+        for actor in scene.records:
+            if actor.kind != 10300:
+                continue
+            graph_base = Reader(actor.data, actor.label).u32(0x244)
+            if not graph_base:
+                continue
+            custom_graph = parse_graph(actor, graph_base)
+            state = custom_graph.states[0]
+            profile = f"g{actor.group:03d}_r{actor.index:04d}_o{graph_base:08x}"
+            clip_id = f"contact_death_{profile}"
+            selected, nodes, skipped = flatten(actor, 0, [], clip_id, (), graph_base)
+            require(bool(selected), f"{actor.label}: contact death visual contains no mesh")
+            data = export_glb(catalog, selected, include_samples=True)
+            verify_glb(data)
+            relative = f"animations/{clip_id}.glb"
+            (output / relative).write_bytes(data)
+            files[relative] = dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+            proof = ("CSimpleStateActor +0x244 relocation 0x4082A2..0x4082BD; "
+                     "damage payload+0x14 0x408C6C..0x408C82; "
+                     "CHugoStateDeath action-0 duration 0x403C36..0x403C4C; "
+                     "render replacement 0x402E2B..0x402E93")
+            clips[clip_id] = dict(action_index=0, semantic=clip_id, profile_role="contact_death",
+                                 path=relative, flags=state.flags,
+                                 source_owner=index.evidence(actor), source_graph_offset=graph_base,
+                                 source_descriptor_offset=state.offset,
+                                 authored_duration_seconds=state.duration,
+                                 authored_duration_timer_ticks=state.duration * NATIVE_TIMER_HZ,
+                                 phase_domain="seconds", cycle_distance=None,
+                                 source_motion_vector=state.vector.tolist(), loop=False,
+                                 nodes=nodes, omitted_effects=skipped, evidence=proof)
+            action_bindings[clip_id] = dict(clip=clip_id, confidence="static_executable", evidence=proof)
+            contact_deaths[profile] = dict(action=clip_id, group=actor.group, record=actor.index,
+                                          graph_offset=graph_base, source_field_offset=0x244,
+                                          duration_seconds=state.duration)
     shadow = export_hugo_shadow(catalog, output, owner)
     files[shadow["path"]] = dict(bytes=shadow["bytes"], sha256=shadow["sha256"])
     all_points = np.concatenate(bind_points)
@@ -527,13 +567,14 @@ def export_animations(catalog: Catalog, output: Path) -> dict:
                                  quaternion_matrix="0x40BAD0"),
         tracks={name: track.manifest() for name, track in tracks.items()},
         clips=clips, bindings=action_bindings, files=files,
-        hugo_action_count=len(graph.states), surface_deaths=surface_deaths, hugo_shadow=shadow,
+        hugo_action_count=len(graph.states), surface_deaths=surface_deaths,
+        contact_deaths=contact_deaths, hugo_shadow=shadow,
         fidelity_notes=[
             "Geometry, action IDs, transform keys and interpolation are recovered from local original data and static executable analysis.",
             "300 Hz is the original timer unit, not an animation frame rate. Moving action phase is driven by traveled distance.",
             "Godot still resolves physical contacts. Recovered player movement and gameplay rules are described by separate manifests; the complete original solver/state controller is not claimed.",
             "GLBs contain initial texture/color/UV samples; additional samples and native material timelines are exported separately in material_animation_manifest.json. Non-mesh effects use the level effect system; original dynamic shading is not restored here.",
-            "The auxiliary Hugo graph is exported as a separate constant-phase ground shadow with recovered height scaling and shared blink conditions. Native pending-death semantics are documented; complete lethal-knockback state handling is not claimed.",
+            "The auxiliary Hugo graph is exported as a separate constant-phase ground shadow with recovered height scaling and shared blink conditions. Native pending-death flags and the damage phase are decoded; the complete legacy support/collision solver is not reproduced.",
             "Actions are selected directly without the original cross-state smoothing controller; crouch transition, alternate idle, jump variant, landing and death remain explicitly addressable.",
         ])
     (output / "animation_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -13,7 +13,8 @@ class TestLevel extends Node3D:
 		events.append(["save"])
 	func set_native_checkpoint(id: String, position: Vector3) -> void:
 		events.append(["checkpoint", id, position])
-	func damage_player(amount: int, origin: Vector3, force: float = 1.0, event: int = 0x22000003) -> void:
+	func damage_player(amount: int, origin: Vector3, force: float = 1.0, event: int = 0x22000003,
+			_death_visual: Dictionary = {}, _death_sound: Dictionary = {}) -> void:
 		damage.append([amount, origin, force, event])
 
 class TestPlayer extends Node3D:

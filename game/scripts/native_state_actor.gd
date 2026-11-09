@@ -260,8 +260,14 @@ func receive_logic_collision(own_node: Dictionary, _other_node: Dictionary, othe
 	var state: Dictionary = _states[state_index]
 	var damage: int = int(state.get("contact_damage", 0))
 	if (own_category & 8) != 0 and damage > 0 and is_instance_valid(other.player):
+		var machine: Dictionary = native.get("state_machine", {})
+		# The verified importer explicitly records null for actors without this
+		# optional graph. Dictionary.get's default only covers a missing key.
+		var death_visual: Variant = machine.get("contact_death_visual")
+		var death_sound: Variant = machine.get("contact_sound_sequence")
 		level.call("damage_player", damage, visual.global_position,
-			float(state.get("knockback_multiplier", 1.0)), int(native.get("state_machine", {}).get("damage_event", 0x22000003)))
+			float(state.get("knockback_multiplier", 1.0)), int(machine.get("damage_event", 0x22000003)),
+			death_visual if death_visual is Dictionary else {}, death_sound if death_sound is Dictionary else {})
 	# Presence of mask2 selects this branch even if no argument matches; native
 	# code does not fall back to mask64 in that case (0x408d5b / 0x40911c).
 	if _has_condition(2):
