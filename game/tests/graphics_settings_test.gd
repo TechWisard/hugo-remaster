@@ -32,9 +32,10 @@ func _run() -> void:
 	var msaa: OptionButton = game.menu.find_child("GraphicsMSAA", true, false) as OptionButton
 	var scale: OptionButton = game.menu.find_child("GraphicsRenderScale", true, false) as OptionButton
 	var textures: OptionButton = game.menu.find_child("GraphicsTextures", true, false) as OptionButton
+	var texture_limit: OptionButton = game.menu.find_child("GraphicsTextureLimit", true, false) as OptionButton
 	var preset: OptionButton = game.menu.find_child("GraphicsPreset", true, false) as OptionButton
 	var vsync: CheckButton = game.menu.find_child("GraphicsVSync", true, false) as CheckButton
-	_check(msaa != null and scale != null and textures != null and vsync != null, "real settings menu exposes the supported graphics controls")
+	_check(msaa != null and scale != null and textures != null and texture_limit != null and vsync != null, "real settings menu exposes the supported graphics controls")
 	_check(game.menu._options_scroll.visible, "graphics controls live in the visible scrollable options panel")
 	var external_profile: bool = NativeGraphicsSettings.launch_profile_requested()
 	var profile_options: Dictionary = NativeGraphicsSettings.effective_options(NativeGraphicsSettings.defaults())
@@ -74,6 +75,12 @@ func _run() -> void:
 			await process_frame
 			_check(is_equal_approx(root.scaling_3d_scale, wanted) and root.scaling_3d_mode == Viewport.SCALING_3D_MODE_BILINEAR,
 				"menu choice %d applies the actual bilinear 3D render scale" % index)
+		for wanted: int in [512, 1024, 2048, 0]:
+			_select(texture_limit, _find_value(texture_limit, wanted))
+			await process_frame
+			_check(game.state.settings.graphics.texture_limit == wanted and int(HugoTexturePack.get_status().max_texture_dimension) == wanted,
+				"texture budget reaches the live replacement manager without changing authored source files")
+			_check(game.state.settings.graphics.texture_quality == "enhanced", "lower texture budgets keep authored replacement textures selected")
 	vsync.button_pressed = false
 	await process_frame
 	_check(not game.state.settings.graphics.vsync, "VSync toggle reaches persisted settings")
@@ -82,12 +89,12 @@ func _run() -> void:
 	_select(textures, 0)
 	_check(game.state.settings.graphics.texture_quality == "original", "original texture choice reaches the campaign setting")
 	_check(not HugoTexturePack.get_status().enabled, "original texture choice disables the live replacement manager")
-	if NativeGraphicsSettings.enhanced_textures_available():
-		_select(textures, 1)
-		_check(game.state.settings.graphics.texture_quality == "enhanced" and HugoTexturePack.get_status().enabled,
-			"installed enhanced texture choice enables the live replacement manager")
-	else:
-		_check(textures.is_item_disabled(1), "an absent enhanced pack is disabled honestly")
+	_select(textures, 1)
+	_check(not textures.is_item_disabled(1) and game.state.settings.graphics.texture_quality == "enhanced" and HugoTexturePack.is_enabled(),
+		"enhanced filtering and analytic effects remain selectable without optional bitmap assets")
+	if NativeGraphicsSettings.safe_profile_requested():
+		_check(texture_limit.disabled and int(HugoTexturePack.get_status().max_texture_dimension) == 512,
+			"safe launch uses the lower resident texture budget while preserving saved maximum quality")
 	var loaded := CampaignState.new()
 	loaded.path = TEST_PATH
 	_check(loaded.read_save([]), "menu settings write a valid campaign save")
@@ -114,7 +121,7 @@ func _run() -> void:
 	legacy.settings.erase("graphics")
 	_check(legacy.write_save() and loaded.read_save([]), "legacy v2 saves without graphics still load")
 	_check(loaded.settings.graphics == NativeGraphicsSettings.defaults(), "legacy graphics preferences use safe supported defaults")
-	var invalid: Dictionary = NativeGraphicsSettings.sanitize({"msaa": 3, "render_scale": INF, "vsync": "yes", "texture_quality": "unknown"})
+	var invalid: Dictionary = NativeGraphicsSettings.sanitize({"msaa": 3, "render_scale": INF, "vsync": "yes", "texture_quality": "unknown", "texture_limit": INF})
 	_check(invalid == NativeGraphicsSettings.defaults(), "unsupported and non-finite graphics settings are rejected")
 	NativeGraphicsSettings.apply(root, NativeGraphicsSettings.defaults())
 	_cleanup()

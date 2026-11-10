@@ -138,6 +138,13 @@ def inspect_pe(path: Path) -> dict:
 def build(lock: dict, output: Path, cache: Path) -> dict:
     if output.exists():
         raise FileExistsError("Output must be a new directory; existing packs are never overwritten")
+    # These authored entrypoints are a contract of the pack, including the
+    # optional desktop A/B checker. Do not silently publish a payload built
+    # from an older or partial templates directory.
+    for relative in lock.get("required_authored_files", []):
+        source = checked_path(ROOT / "templates", relative)
+        if not source.is_file() or source.is_symlink():
+            raise ValueError(f"Missing required authored template: {relative}")
     output.parent.mkdir(parents=True, exist_ok=True)
     cache.mkdir(parents=True, exist_ok=True)
     manifest = {
@@ -148,6 +155,8 @@ def build(lock: dict, output: Path, cache: Path) -> dict:
         "model_execution": "not_run",
         "launch_profile": {"user_argument": "--dlss5-profile", "msaa": 4, "render_scale": 1.0},
         "sources": lock["components"],
+        "lock_sha256": hashlib.sha256(json.dumps(lock, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "authored_templates": [],
         "files": [],
         "pe": {},
     }
@@ -178,7 +187,11 @@ def build(lock: dict, output: Path, cache: Path) -> dict:
             else:
                 raise ValueError(f"Unknown component format: {component['type']}")
         for source in sorted((ROOT / "templates").iterdir()):
+            if not source.is_file() or source.is_symlink():
+                raise ValueError(f"Unexpected authored template entry: {source.name}")
             shutil.copy2(source, payload / source.name)
+            manifest["authored_templates"].append({"path": source.name, "size": source.stat().st_size,
+                                                   "sha256": digest_file(source)})
         shutil.copy2(ROOT / "Install-Hugo-DLSS5.ps1", stage / "Install-Hugo-DLSS5.ps1")
         shutil.copy2(ROOT / "README.md", stage / "README_RU.md")
         for relative, required in lock["required_pe_exports"].items():

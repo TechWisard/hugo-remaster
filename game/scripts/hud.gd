@@ -7,6 +7,7 @@ signal next_requested
 
 const Localizer = preload("res://scripts/native_localization.gd")
 const TextBindings = preload("res://scripts/native_text_bindings.gd")
+const NeuralStatus = preload("res://scripts/native_neural_status.gd")
 
 var counter: Label
 var clock_label: Label
@@ -63,6 +64,11 @@ func _ready() -> void:
 	screen.add_child(brand)
 	brand.add_child(_label("brand.name", 34, GOLD))
 	brand.add_child(_label("brand.subtitle", 12, CREAM))
+	var neural_status = NeuralStatus.attach(screen)
+	if neural_status != null:
+		neural_status.position = Vector2(32, 94)
+		neural_status.custom_minimum_size.x = 270
+		neural_status.size.x = 270
 	chapter_label = _label("", 16, CREAM)
 	chapter_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	chapter_label.position = Vector2(-240, 34)

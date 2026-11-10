@@ -4,6 +4,18 @@
   "route": "external_windows_x64_opengl_gitc_dlss_nr",
   "target_gpu": "RTX 4090; candidate RTX devices are individually probed",
   "public_distribution": "scripts and this lock only; generated dependency pack is private",
+  "required_authored_files": [
+    "Hugo-DLSS5.ps1",
+    "Launch-Hugo.cmd",
+    "Launch-Hugo.ps1",
+    "Verify-Hugo-DLSS5.cmd",
+    "Verify-Hugo-DLSS5.ps1",
+    "Check-Hugo-NR-Image.cmd",
+    "Check-Hugo-NR-Image.ps1",
+    "Hugo-NR-ImageCapture.cs",
+    "ReShade.ini",
+    "ReShadePreset_DLSS5.ini"
+  ],
   "components": [
     {
       "id": "reshade",

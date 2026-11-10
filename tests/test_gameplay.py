@@ -61,6 +61,31 @@ def state_fixture():
 
 
 class GameplayTests(unittest.TestCase):
+    def test_player_action_sound_table_keeps_whip_phase_and_scoped_sample(self):
+        header = 0x1EC
+        data = bytearray(header + 84)
+        sequence = 0xCC + 2 * 20
+        struct.pack_into("<f", data, sequence + 4, 9.0)
+        struct.pack_into("<I", data, sequence + 16, (1 << 16) | header)
+        struct.pack_into("<fI", data, header, 6.0, 0x80010000)
+        player = record(2, 0, 10000, header, data)
+        sound_data = bytearray(44)
+        struct.pack_into("<II", sound_data, 4, 4, 45)
+        struct.pack_into("<ff", sound_data, 16, 1.0, .5)
+        struct.pack_into("<f", sound_data, 28, 1.0)
+        sound = record(1, 0, 1000, 44, sound_data)
+        d = decoder([player, sound])
+        d.audio_chunks[(1, 45)] = SimpleNamespace(group=1, resource_id=45)
+        table = d.player_action_sounds(player)
+        self.assertEqual(len(table), 14)
+        self.assertEqual(table["2"]["source_field_offset"], 0xF4)
+        self.assertEqual(table["2"]["cues"][0]["normalized_phase"], 2 / 3)
+        self.assertEqual(table["2"]["cues"][0]["sound"]["path"], "audio/g001_r0045.wav")
+        self.assertEqual(table["1"]["cues"], [])
+        struct.pack_into("<I", data, sequence + 16, (1 << 16) | 20)
+        with self.assertRaisesRegex(FormatError, "overlaps header"):
+            d.player_action_sounds(replace(player, data=bytes(data)))
+
     def test_reference_scope_is_ancestry_not_absolute_group(self):
         root, parent, child = record(0, 0, 6017, 464), record(1, 0, 10301, 420), record(2, 0, 3000, 52)
         d = decoder([root, parent, child])

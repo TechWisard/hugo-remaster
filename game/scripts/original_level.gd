@@ -16,12 +16,13 @@ const ActorScript = preload("res://scripts/native_state_actor.gd")
 const MotionScript = preload("res://scripts/native_actor_motion.gd")
 const SamplerScript = preload("res://scripts/original_animation.gd")
 const EffectsScript = preload("res://scripts/native_effects.gd")
-const BackgroundShader = preload("res://scripts/native_background.gdshader")
 const GraphScript = preload("res://scripts/native_graph_colliders.gd")
 const ScopeScript = preload("res://scripts/native_scopes.gd")
 const SoundScript = preload("res://scripts/native_audio.gd")
+const PlayerAudioScript = preload("res://scripts/native_player_audio.gd")
 const SpeakerScript = preload("res://scripts/native_speaker.gd")
 const NativeMaterialsScript = preload("res://scripts/native_materials.gd")
+const GeometryQualityScript = preload("res://scripts/native_geometry_quality.gd")
 const SceneIndexScript = preload("res://scripts/native_scene_index.gd")
 
 var entry: Dictionary
@@ -60,6 +61,7 @@ var effects: NativeEffects
 var pickup_areas: Dictionary = {}
 var pickup_graphs: Dictionary = {}
 var player_graph: NativeGraphColliders
+var player_audio: Node
 var scopes: NativeScopes
 var _scope_wrappers: Dictionary = {}
 var _owner_areas: Dictionary = {}
@@ -86,9 +88,11 @@ var _death_surface: Dictionary = {}
 var _death_sound_sequence: Dictionary = {}
 var _death_sound_cues_played: Dictionary = {}
 var _death_sound_position := Vector3.ZERO
+var _geometry_collision_pending: Dictionary = {}
 
 
 func _ready() -> void:
+	add_to_group("native_geometry_owners")
 	RemasterInput.configure()
 	var path: String = "res://assets/generated/" + str(entry.get("geometry_path", ""))
 	if not ResourceLoader.exists(path, "PackedScene"):
@@ -247,6 +251,12 @@ func _create_player() -> void:
 		player.set("native_reset_handling", true)
 		player.connect("reset_requested", _on_reset_requested)
 	player.native_fatal_landed.connect(_begin_death)
+	player_audio = PlayerAudioScript.new()
+	player_audio.name = "NativePlayerAudio"
+	player_audio.player = player
+	player_audio.level = self
+	player_audio.sequences = gameplay.get("native_player", {}).get("action_sound_sequences", {})
+	add_child(player_audio)
 	camera_rig = CameraScript.new()
 	camera_rig.target_height = 1.05 * size_ratio
 	camera_rig.orbit_distance = 6.5 * size_ratio
@@ -255,6 +265,10 @@ func _create_player() -> void:
 	camera_rig.initial_pitch_degrees = -16.0
 	camera_rig.initial_yaw_degrees = rad_to_deg(facing)
 	camera_rig.configure(gameplay.get("camera", {}), data.get("native_transform_tracks", {}))
+	# These permanent repairs already exist before player/camera creation. Six
+	# chapters without one need no extra silhouette queries during gameplay.
+	camera_rig.boundary_occlusion_enabled = is_instance_valid(level_geometry) \
+		and not level_geometry.find_children("PermanentBoundaryCollision", "StaticBody3D", true, false).is_empty()
 	add_child(camera_rig)
 	camera_rig.set_target(player)
 	player.movement_camera = camera_rig.camera
@@ -281,8 +295,23 @@ func _build_collision() -> void:
 			var faces := PackedVector3Array()
 			for point: Array in mesh_data.get("faces", []):
 				faces.append(_vector(point))
+			var surface_types: Array = mesh_data.get("surface_types", []).duplicate()
+			var supplemental: Dictionary = mesh_data.get("remaster_collision", {})
+			# The native quadtree was an XY height-query subset, not a closed
+			# collision shell. Reuse verified opaque source triangles for the
+			# omitted banks/walls; authored holes and transparent effects stay open.
+			if str(supplemental.get("policy", "")) in ["authored_static_opaque_triangles_only", "authored_opaque_triangles_with_verified_animated_solids"]:
+				for point: Array in supplemental.get("faces", []):
+					faces.append(_vector(point))
+				surface_types.append_array(supplemental.get("surface_types", []))
 			if faces.is_empty() or faces.size() % 3 != 0:
 				continue
+			var original_faces: PackedVector3Array = faces
+			var original_types: Array = surface_types
+			var rebuilt: Dictionary = GeometryQualityScript.collision_for_owner(visual)
+			if not rebuilt.is_empty():
+				faces = rebuilt.faces
+				surface_types = Array(rebuilt.surface_types)
 			var shape := ConcavePolygonShape3D.new()
 			shape.set_faces(faces)
 			shape.backface_collision = true
@@ -291,7 +320,13 @@ func _build_collision() -> void:
 			body.collision_layer = 1
 			body.collision_mask = 0
 			body.set_meta("native_owner", id)
-			body.set_meta("native_surfaces", mesh_data.get("surface_types", []))
+			body.set_meta("native_surfaces", surface_types)
+			body.set_meta("original_collision_faces", original_faces)
+			body.set_meta("original_collision_surface_types", original_types)
+			body.set_meta("geometry_quality_enhanced", not rebuilt.is_empty())
+			body.set_meta("active_triangle_count", faces.size() / 3)
+			body.set_meta("native_triangle_count", int(mesh_data.get("triangle_count", 0)))
+			body.set_meta("remaster_triangle_count", int(supplemental.get("triangle_count", 0)))
 			var collider := CollisionShape3D.new()
 			collider.shape = shape
 			body.add_child(collider)
@@ -318,6 +353,45 @@ func _build_collision() -> void:
 			body.add_child(collider)
 			visual.add_child(body)
 			_collision_count += 1
+
+
+func native_geometry_changed(instance: MeshInstance3D) -> void:
+	# Geometry quality changes in the paused menu or QA keep the existing native
+	# body/layer/owner identity. Defer shape mutation outside a physics flush and
+	# collapse notifications from all surfaces of the same owner.
+	var node: Node = instance
+	while node != null and node != self:
+		var id: String = str(node.name)
+		if owner_nodes.get(id) == node and str(owners.get(id, {}).get("collision_role", "")) == "segment":
+			if node.has_node("NativeCollision") and not _geometry_collision_pending.has(id):
+				_geometry_collision_pending[id] = true
+				_refresh_geometry_collision.call_deferred(id)
+			return
+		node = node.get_parent()
+
+
+func _refresh_geometry_collision(id: String) -> void:
+	_geometry_collision_pending.erase(id)
+	var visual: Node3D = owner_nodes.get(id) as Node3D
+	if not is_instance_valid(visual):
+		return
+	var body: StaticBody3D = visual.get_node_or_null("NativeCollision") as StaticBody3D
+	if body == null or not body.has_meta("original_collision_faces"):
+		return
+	var rebuilt: Dictionary = GeometryQualityScript.collision_for_owner(visual)
+	var faces: PackedVector3Array = rebuilt.get("faces", body.get_meta("original_collision_faces"))
+	var types: Array = Array(rebuilt.surface_types) if not rebuilt.is_empty() else body.get_meta("original_collision_surface_types")
+	if faces.size() != types.size() * 3 or faces.is_empty():
+		push_error("Rebuilt terrain support does not match its native surface provenance: " + id)
+		return
+	for child: Node in body.get_children():
+		var collider: CollisionShape3D = child as CollisionShape3D
+		if collider != null and collider.shape is ConcavePolygonShape3D:
+			(collider.shape as ConcavePolygonShape3D).set_faces(faces)
+			body.set_meta("native_surfaces", types)
+			body.set_meta("geometry_quality_enhanced", not rebuilt.is_empty())
+			body.set_meta("active_triangle_count", faces.size() / 3)
+			return
 
 
 func _prepare_native_scopes() -> void:
@@ -1162,16 +1236,12 @@ func _prepare_background_material(node: Node) -> void:
 		var mesh: MeshInstance3D = node as MeshInstance3D
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		for index: int in range(mesh.mesh.get_surface_count()):
-			var original: BaseMaterial3D = mesh.get_active_material(index) as BaseMaterial3D
+			var original: BaseMaterial3D = mesh.mesh.surface_get_material(index) as BaseMaterial3D
 			if original == null:
 				continue
-			var material := ShaderMaterial.new()
-			material.shader = BackgroundShader
-			material.set_shader_parameter("background_tint", original.albedo_color)
-			material.set_shader_parameter("has_texture", original.albedo_texture != null)
-			if original.albedo_texture:
-				material.set_shader_parameter("source_texture", original.albedo_texture)
+			var material: ShaderMaterial = NativeMaterialsScript.prepare_background_material(original, mesh.get_active_material(index))
 			mesh.set_surface_override_material(index, material)
+			NativeMaterialsScript.rebind_animation_material(mesh, index, material)
 	for child: Node in node.get_children():
 		_prepare_background_material(child)
 

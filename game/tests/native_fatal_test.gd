@@ -8,6 +8,7 @@ const LEVEL_ID: String = "fatal_fixture"
 class Fixture extends OriginalLevel:
 	var platform_height: float = 0.0
 	var upper_floor: StaticBody3D
+	var thin_floor: bool = false
 
 	func _ready() -> void:
 		RemasterInput.configure()
@@ -37,10 +38,18 @@ class Fixture extends OriginalLevel:
 	func _floor(height: float) -> StaticBody3D:
 		var body := StaticBody3D.new()
 		var collision := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = Vector3(1000, 1, 1000)
-		collision.shape = shape
-		body.position.y = height - 0.5
+		if thin_floor:
+			var shape := ConcavePolygonShape3D.new()
+			shape.backface_collision = true
+			shape.set_faces(PackedVector3Array([Vector3(-20,0,-20),Vector3(20,0,20),Vector3(20,0,-20),
+				Vector3(-20,0,-20),Vector3(-20,0,20),Vector3(20,0,20)]))
+			collision.shape = shape
+			body.position.y = height
+		else:
+			var shape := BoxShape3D.new()
+			shape.size = Vector3(1000, 1, 1000)
+			collision.shape = shape
+			body.position.y = height - 0.5
 		body.add_child(collision)
 		add_child(body)
 		return body
@@ -73,6 +82,30 @@ class Fixture extends OriginalLevel:
 			"standing_box_size": [0.8, 3.0, 0.8], "crouching_box_size": [0.8, 2.0, 0.8],
 			"walk_run_animation_threshold": 3.9, "invulnerability_seconds": 2.0}
 
+
+class SideProxy extends AnimatableBody3D:
+	var armed: bool = false
+	var next_position: Vector3
+	var world: OriginalLevel
+
+	func _ready() -> void:
+		process_physics_priority = 100
+		sync_to_physics = false
+		collision_mask = 0
+		set_meta("native_owner", "moving_fixture")
+		var collider := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(3,3,3)
+		collider.shape = box
+		add_child(collider)
+
+	func _physics_process(_delta: float) -> void:
+		if armed:
+			global_position = next_position
+			armed = false
+			if is_instance_valid(world):
+				world.damage_player(1, global_position)
+
 var checks: int = 0
 var failures: Array[String] = []
 var source_contact_checked: bool = false
@@ -87,6 +120,7 @@ func _run() -> void:
 	RemasterInput.configure()
 	_release()
 	await _surviving_damage()
+	await _moving_blocker_separation()
 	await _immediate_fatal_branches()
 	await _pending_without_timer()
 	await _pending_save(false)
@@ -100,6 +134,112 @@ func _run() -> void:
 	_cleanup()
 	print("NATIVE_FATAL checks=", checks, " source_contact=", source_contact_checked, " failures=", JSON.stringify(failures))
 	quit(0 if failures.is_empty() else 1)
+
+
+func _moving_blocker_separation() -> void:
+	for wall_mode: int in range(3):
+		var level := Fixture.new()
+		level.thin_floor = true
+		root.add_child(level)
+		await _ticks(8)
+		var player: HugoPlayer = level.player
+		var start: Vector3 = player.global_position
+		if wall_mode >= 1:
+			_wall(level,Vector3(-1,2,0),Vector3(0.2,6,10))
+		if wall_mode == 2:
+			_wall(level,Vector3(1,2,0),Vector3(0.2,6,10))
+			_wall(level,Vector3(0,2,-1),Vector3(10,6,0.2))
+			_wall(level,Vector3(0,2,1),Vector3(10,6,0.2))
+			level.health = 2
+		var proxy := SideProxy.new()
+		proxy.name = "NativePhysicalSlot0"
+		proxy.position = Vector3(5,3,0)
+		proxy.world = level
+		level.add_child(proxy)
+		await _ticks(2)
+		proxy.next_position = Vector3(0.25,3,0)
+		proxy.armed = true
+		await _ticks(1)
+		_check(player.in_native_damage and player.velocity.y == 12.0,
+			"moving proxy delivers the original upward damage launch mode" + str(wall_mode))
+		var params := PhysicsTestMotionParameters3D.new()
+		params.from = player.global_transform
+		params.margin = player.safe_margin
+		params.recovery_as_collision = true
+		var recovery := PhysicsTestMotionResult3D.new()
+		PhysicsServer3D.body_test_motion(player.get_rid(),params,recovery)
+		_check(recovery.get_travel().y < -0.5,
+			"fixture exposes the real unsafe downward recovery before correction mode" + str(wall_mode))
+		var launch: Vector3 = player.velocity
+		await _ticks(1)
+		_check(player.global_position.y >= start.y - 0.03 and player.get_collision_exceptions().is_empty(),
+			"side contact never crosses the real thin floor or leaves collision exceptions mode" + str(wall_mode))
+		if wall_mode < 2:
+			_check(player.velocity.y > 10.0 and not player.is_on_floor() and player.in_native_damage,
+				"successful separation preserves the source upward flight mode" + str(wall_mode))
+			_check(not _overlaps(player,proxy),"separated destination is outside the moving blocking box mode" + str(wall_mode))
+			if wall_mode == 1:
+				_check(player.global_position.x > -0.51 and absf(player.global_position.z) > 1.5,
+					"blocked preferred push chooses a swept side exit without tunnelling through the wall")
+			await _ticks(30)
+			_check(player.is_on_floor() and not player.in_native_damage and level.health == 8 and level.lives == 4,
+				"damage flight lands normally after constrained separation mode" + str(wall_mode))
+		else:
+			_check(player.global_position.distance_to(start) < 0.03 and player.velocity == launch,
+				"fully blocked escape retains supported position and unperformed launch")
+			await _ticks(3)
+			_check(player.pending_fatal and player.in_native_damage and not level._death_in_progress \
+				and level.lives == 3 and player.velocity == launch and player.global_position.y >= start.y - 0.03,
+				"a stationary overlapping blocker cannot create a false fatal landing or a second life charge")
+			# A tracked side blocker becoming a descending crusher must leave this
+			# narrowly scoped repair. Query the policy without advancing the body.
+			PhysicsServer3D.body_set_state(proxy.get_rid(),PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY,Vector3.DOWN*4)
+			var before: Vector3 = player.global_position
+			_check(player._contact_separation.resolve(player,player._collider,launch) == player.ContactSeparation.Result.UNCHANGED \
+				and player.global_position == before,
+				"vertical crushing motion clears the remembered horizontal encounter")
+		level.free()
+		await _ticks(2)
+	# Existing deliberate collision exclusions remain exclusions for recovery.
+	var level := Fixture.new()
+	level.thin_floor = true
+	root.add_child(level)
+	await _ticks(8)
+	var proxy := SideProxy.new()
+	proxy.name = "NativePhysicalSlot0"
+	proxy.position = Vector3(0,3,0)
+	level.add_child(proxy)
+	level.player.add_collision_exception_with(proxy)
+	PhysicsServer3D.body_set_state(proxy.get_rid(),PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY,Vector3.LEFT*10)
+	var before: Vector3 = level.player.global_position
+	_check(level.player._contact_separation.resolve(level.player,level.player._collider) == level.player.ContactSeparation.Result.UNCHANGED \
+		and level.player.global_position == before and proxy in level.player.get_collision_exceptions(),
+		"pre-existing intentional collision exclusion is preserved")
+	level.free()
+	await _ticks(2)
+
+
+func _wall(level: Node3D, at: Vector3, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.position = at
+	var collider := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	collider.shape = box
+	body.add_child(collider)
+	level.add_child(body)
+
+
+func _overlaps(player: HugoPlayer, body: PhysicsBody3D) -> bool:
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = player._collider.shape
+	query.transform = player._collider.global_transform
+	query.collision_mask = player.collision_mask
+	query.exclude = [player.get_rid()]
+	for hit: Dictionary in player.get_world_3d().direct_space_state.intersect_shape(query,32):
+		if hit.collider == body:
+			return true
+	return false
 
 
 func _surviving_damage() -> void:

@@ -13,6 +13,16 @@ var native_phase: float = 0.0
 var source_camera_offset: Vector3 = Vector3.ZERO
 var source_ready: bool = false
 var effect_active: bool = false
+## Camera presentation guard for free backtracking past a source rail endpoint.
+## The original tracks, tracker phase and world geometry are never rewritten.
+var backtracking_clearance_enabled: bool = true
+var backtracking_clearance_active: bool = false
+## Permanent visible map completions must not sit between the rail camera and
+## Hugo. Preserve the rail's horizontal side while bringing the camera inside.
+var boundary_occlusion_enabled: bool = true
+var boundary_occlusion_active: bool = false
+var boundary_occluder: String = ""
+var _boundary_orbit_sign: float = 1.0
 
 var _native_sampler: HugoOriginalAnimation = NativeSamplerScript.new() as HugoOriginalAnimation
 var _camera_track: Dictionary = {}
@@ -81,6 +91,7 @@ func _physics_process(delta: float) -> void:
 		super._physics_process(delta)
 		return
 	if manual_orbit:
+		camera.remove_meta("hugo_native_movement_forward")
 		# The source rail also controls actor activation ranges. Keep its
 		# tracker advancing when the player chooses a different camera view.
 		if is_instance_valid(_target):
@@ -171,6 +182,7 @@ func set_manual_orbit(enabled: bool) -> void:
 	if enabled == manual_orbit or not is_instance_valid(camera):
 		return
 	_release_drag()
+	camera.remove_meta("hugo_native_movement_forward")
 	if enabled and is_instance_valid(_target):
 		var center: Vector3 = _target.global_position + Vector3.UP * target_height
 		var offset: Vector3 = camera.global_position - center
@@ -246,6 +258,40 @@ func _update_native(delta: float, snap: bool) -> void:
 		var vertical_offset: Vector3 = Vector3.UP * effect.origin.x * 0.01
 		desired_position += vertical_offset
 		focus += vertical_offset
+	backtracking_clearance_active = false
+	if backtracking_clearance_enabled and not _path_loop \
+			and (native_phase <= 0.000001 or native_phase >= 0.999999):
+		# At an endpoint the rail cannot move farther, but modern free movement
+		# can bring Hugo beneath and behind its camera. A camera aimed at Hugo
+		# then reverses its horizontal axis every time S crosses the camera:
+		# the player spins in place and falls outside the smoothed view. Keep
+		# the camera on its authored side, at a usable framing distance, only
+		# while that endpoint clearance would otherwise be lost.
+		var rail_back := Vector3(source_camera_offset.x, 0.0, source_camera_offset.z)
+		if rail_back.length_squared() > 0.000001:
+			rail_back = rail_back.normalized()
+			var clearance: float = (desired_position - focus).dot(rail_back)
+			var required_clearance: float = maxf(minimum_distance, target_height * 4.0)
+			if clearance < required_clearance:
+				desired_position += rail_back * (required_clearance - clearance)
+				backtracking_clearance_active = true
+	boundary_occlusion_active = false
+	boundary_occluder = ""
+	var control_direction: Vector3 = _anticipated_direction(focus - desired_position)
+	if boundary_occlusion_enabled:
+		var body_focus: Vector3 = focus + Vector3.UP * target_height
+		desired_position = _clear_boundary_sightline(body_focus, desired_position)
+		if boundary_occlusion_active:
+			# The original slow pitch interpolation can look past Hugo while the
+			# obstacle contracts the horizontal distance. Aim at his body now;
+			# player movement, source tracks and tracker phase remain untouched.
+			focus = body_focus
+	if boundary_occlusion_active:
+		# Collision avoidance changes the view, never the rail-relative controls.
+		# In particular, holding S must not steer Hugo around with this camera.
+		camera.set_meta("hugo_native_movement_forward", Vector3(control_direction.x, 0.0, control_direction.z).normalized())
+	else:
+		camera.remove_meta("hugo_native_movement_forward")
 	global_position = desired_position
 	global_rotation = Vector3.ZERO
 	_spring_arm.spring_length = 0.0
@@ -254,18 +300,9 @@ func _update_native(delta: float, snap: bool) -> void:
 	var direction: Vector3 = focus - desired_position
 	if direction.length_squared() < 0.000001:
 		return
-	direction = direction.normalized()
-	# 0x40AB38..0x40AC18: lean the view toward the camera rail's tangent
-	# when looking along that tangent; preserve the vertical component first.
-	var source_tangent: Vector3 = _native_sampler.sample_native_path_tangent(_camera_track, native_phase)
-	var tangent: Vector3 = (HugoOriginalAnimation.SOURCE_AXES * source_tangent).normalized()
-	var flat_direction: Vector3 = Vector3(direction.x, 0.0, direction.z).normalized()
-	var alignment: float = flat_direction.dot(tangent)
-	if alignment > 0.0:
-		var anticipated: Vector3 = Vector3(tangent.x, direction.y, tangent.z)
-		direction = direction.lerp(anticipated, 0.5 * alignment * alignment).normalized()
+	direction = direction.normalized() if boundary_occlusion_active else _anticipated_direction(direction)
 	var desired_pitch: float = asin(clampf(direction.y, -1.0, 1.0))
-	if snap or not _native_snapped:
+	if snap or not _native_snapped or boundary_occlusion_active:
 		_native_pitch = desired_pitch
 		_native_snapped = true
 	else:
@@ -278,6 +315,114 @@ func _update_native(delta: float, snap: bool) -> void:
 	horizontal = horizontal.normalized()
 	var aim: Vector3 = horizontal * cos(_native_pitch) + Vector3.UP * sin(_native_pitch)
 	camera.basis = Basis.looking_at(aim, Vector3.UP)
+
+
+func _anticipated_direction(offset: Vector3) -> Vector3:
+	var direction: Vector3 = offset.normalized()
+	# 0x40AB38..0x40AC18: recovered rail-tangent anticipation.
+	var source_tangent: Vector3 = _native_sampler.sample_native_path_tangent(_camera_track, native_phase)
+	var tangent: Vector3 = (HugoOriginalAnimation.SOURCE_AXES * source_tangent).normalized()
+	var flat_direction: Vector3 = Vector3(direction.x, 0.0, direction.z).normalized()
+	var alignment: float = flat_direction.dot(tangent)
+	if alignment > 0.0:
+		direction = direction.lerp(Vector3(tangent.x, direction.y, tangent.z), 0.5 * alignment * alignment).normalized()
+	return direction
+
+
+func _boundary_silhouette_points(focus: Vector3, back: Vector3) -> PackedVector3Array:
+	var right: Vector3 = Vector3.UP.cross(back).normalized()
+	var feet: Vector3 = focus - Vector3.UP * (target_height - maxf(0.08, camera.near * 0.5))
+	# Width samples catch a sloping crown before it covers a leg or shoulder.
+	return PackedVector3Array([feet, feet - right * target_height * 0.35,
+		feet + right * target_height * 0.35, focus - right * target_height * 0.55,
+		focus + right * target_height * 0.55, focus + Vector3.UP * target_height])
+
+
+func _clear_boundary_sightline(focus: Vector3, desired: Vector3) -> Vector3:
+	var flat: Vector3 = Vector3(desired.x - focus.x, 0.0, desired.z - focus.z)
+	if flat.length_squared() < 0.000001:
+		return desired
+	var back: Vector3 = flat.normalized()
+	var points: PackedVector3Array = _boundary_silhouette_points(focus, back)
+	var clearance: float = flat.length()
+	var margin: float = maxf(0.5, camera.near * 2.0)
+	for point: Vector3 in points:
+		# The horizontal query reacts before the camera crosses the rock crown,
+		# even while one central diagonal ray still passes just above it.
+		var hit: Dictionary = _boundary_hit(point, Vector3(desired.x, point.y, desired.z))
+		if not hit.is_empty():
+			boundary_occlusion_active = true
+			boundary_occluder = str((hit.collider as Node).get_path())
+			clearance = minf(clearance, (Vector3(hit.position) - focus).dot(back) - margin)
+		elif not boundary_occlusion_active:
+			hit = _boundary_hit(point, desired)
+			if not hit.is_empty():
+				boundary_occlusion_active = true
+				boundary_occluder = str((hit.collider as Node).get_path())
+				clearance = minf(clearance, (Vector3(hit.position) - focus).dot(back) - margin)
+	if not boundary_occlusion_active:
+		return desired
+	var framing_distance: float = maxf(minimum_distance, target_height * 3.5)
+	var height: float = focus.y + clampf(desired.y - focus.y, target_height * 1.8, framing_distance * 0.85)
+	var direct: Vector3 = focus + back * maxf(clearance, 0.05)
+	direct.y = height
+	if clearance >= framing_distance and _boundary_view_clear(points, direct):
+		return direct
+	# Contracting to a few centimetres produces a top-down view of only Hugo's
+	# head. Move along an arc inside the wall instead, retaining enough distance
+	# and a readable elevation. Keep the chosen shoulder while the guard is on.
+	var angle: float = acos(clampf(clearance / framing_distance, -1.0, 1.0)) + deg_to_rad(5.0)
+	angle = minf(angle, PI)
+	for sign_value: float in [_boundary_orbit_sign, -_boundary_orbit_sign]:
+		for attempt: int in range(7):
+			var orbit_angle: float = minf(PI, angle + deg_to_rad(15.0 * attempt))
+			var candidate: Vector3 = focus + back.rotated(Vector3.UP, orbit_angle * sign_value) * framing_distance
+			candidate.y = height
+			if _boundary_view_clear(points, candidate):
+				_boundary_orbit_sign = sign_value
+				return candidate
+			if orbit_angle >= PI:
+				break
+	# A narrow native enclosure may reject both shoulders. Stay on its interior
+	# side; this fallback never moves Hugo or disables an obstacle.
+	var interior: Vector3 = focus - back * framing_distance
+	interior.y = height
+	return interior
+
+
+func _boundary_view_clear(points: PackedVector3Array, candidate: Vector3) -> bool:
+	var excluded: Array[RID] = []
+	if _target is CollisionObject3D:
+		excluded.append((_target as CollisionObject3D).get_rid())
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for point: Vector3 in points:
+		var query := PhysicsRayQueryParameters3D.create(point, candidate, camera_collision_mask, excluded)
+		query.hit_back_faces = true
+		if not space.intersect_ray(query).is_empty():
+			return false
+	return true
+
+
+func _boundary_hit(from: Vector3, to: Vector3) -> Dictionary:
+	if from.distance_squared_to(to) <= 0.000001 or not is_inside_tree():
+		return {}
+	var excluded: Array[RID] = []
+	if _target is CollisionObject3D:
+		excluded.append((_target as CollisionObject3D).get_rid())
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	# Only the explicit permanent visible repairs opt into this source-camera
+	# adaptation. Other native colliders retain the recovered camera behavior.
+	for attempt: int in range(12):
+		var query := PhysicsRayQueryParameters3D.create(from, to, camera_collision_mask, excluded)
+		query.hit_back_faces = true
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			return {}
+		var body: Object = hit.collider
+		if body is Node and bool((body as Node).get_meta("hugo_boundary_closure", false)):
+			return hit
+		excluded.append(hit.rid)
+	return {}
 
 
 func nearest_path_phase(point: Vector3, previous_phase: float = 0.0) -> float:

@@ -17,6 +17,7 @@ if (Test-Path -LiteralPath (Join-Path $cleanRoot 'opengl32.dll')) { throw 'A gra
 $session = [Guid]::NewGuid().ToString('N')
 $logs = Join-Path $PSScriptRoot ('dlss5-logs/' + $session)
 [IO.Directory]::CreateDirectory($logs) | Out-Null
+$liveStatusPath = Join-Path $logs 'nr-live.json'
 $decisions = [ordered]@{ schema = 1; session = $session; started_utc = [DateTime]::UtcNow.ToString('o'); route = 'pending'; neural_rendering_verified = $false; probes = @() }
 $decisionPath = Join-Path $PSScriptRoot 'graphics-launch-status.json'
 $cachePath = Join-Path $PSScriptRoot 'dlss5-capability-cache.json'
@@ -53,7 +54,13 @@ if ($null -eq $baseProbe.capability) {
     $decisions.probes += $baseProbe
 }
 $route = Select-HugoGraphicsRoute -Probe $baseProbe.capability -NeuralFilesValid $neuralFilesValid
+$inactiveReason = 'renderer_not_eligible_for_neural_bridge'
+if (-not $neuralFilesValid) { $inactiveReason = 'neural_files_invalid' }
+elseif ($null -eq $baseProbe.capability) { $inactiveReason = 'graphics_probe_unavailable' }
+elseif ($baseProbe.capability.angle_detected) { $inactiveReason = 'angle_clean_fallback' }
+elseif ($baseProbe.capability.software_renderer) { $inactiveReason = 'software_renderer' }
 if ($ForceClean -and $route -eq 'neural_probe_required') { $route = 'clean_native' }
+if ($ForceClean) { $inactiveReason = 'forced_clean' }
 $fingerprint = ''
 if ($route -eq 'neural_probe_required') {
     $driverInfo = @()
@@ -90,6 +97,7 @@ if ($route -eq 'neural_probe_required') {
         } elseif (Test-Path -LiteralPath $cachePath) { Remove-Item -LiteralPath $cachePath }
     } else { $decisions.neural_probe_cache = 'matching_hardware_driver_game_components_and_configuration' }
     $route = $(if ($qualified) { 'neural_native' } else { 'clean_native' })
+    if (-not $qualified) { $inactiveReason = 'neural_preflight_not_confirmed' }
 }
 $decisions.route = $route
 Save-Decision
@@ -97,8 +105,10 @@ if ($route -eq 'neural_native') {
     Archive-NeuralLog -Name 'previous-cached-ReShade.log'
     $run = [ordered]@{ schema = 1; run_id = $session; started_utc = [DateTime]::UtcNow.ToString('o'); exit_code = $null; backend = 'gitc_uplift_opengl'; user_argument = '--dlss5-profile' }
     $run | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'dlss5-last-run.json') -Encoding UTF8
-    $result = Start-HugoObservedGame -Root $PSScriptRoot -Driver 'opengl3' -Profile '--dlss5-profile' -ObserveNeural
+    $result = Start-HugoObservedGame -Root $PSScriptRoot -Driver 'opengl3' -Profile '--dlss5-profile' -ObserveNeural -NeuralStatusPath $liveStatusPath -Session $session
     $run.exit_code = $result.exit_code
+    $run.process_id = $result.process_id
+    $run.live_status_path = $liveStatusPath
     $run.completed_utc = [DateTime]::UtcNow.ToString('o')
     $run | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'dlss5-last-run.json') -Encoding UTF8
     try {
@@ -112,16 +122,21 @@ if ($route -eq 'neural_native') {
     # stopped or relaunched simply because it has no neural evaluation markers.
     $decisions.neural_process_exit = $result.exit_code
     $route = 'clean_native'
+    $inactiveReason = 'neural_game_process_failed_clean_relaunch'
 }
 $driver = $(if ($route -eq 'clean_angle') { 'opengl3_angle' } elseif ($route -eq 'clean_engine_auto') { '' } else { 'opengl3' })
+$cleanProfile = Select-HugoCleanProfile -Probe $baseProbe.capability
 $decisions.route = $route
+$decisions.clean_quality_profile = $(if ($cleanProfile) { 'safe' } else { 'saved_user_settings' })
 Save-Decision
-$cleanResult = Start-HugoObservedGame -Root $cleanRoot -Driver $driver -Profile '--graphics-safe-profile'
-if ($cleanResult.exit_code -ne 0 -and $driver -ne 'opengl3_angle') {
+$cleanResult = Start-HugoObservedGame -Root $cleanRoot -Driver $driver -Profile $cleanProfile -NeuralStatusPath $liveStatusPath -Session $session -InactiveReason $inactiveReason
+if ($cleanResult.exit_code -ne 0 -and ($driver -ne 'opengl3_angle' -or $cleanProfile -ne '--graphics-safe-profile')) {
     $decisions.native_clean_exit = $cleanResult.exit_code
-    $decisions.route = 'clean_angle_after_native_failure'
+    $decisions.route = $(if ($driver -eq 'opengl3_angle') { 'clean_angle_safe_after_failure' } else { 'clean_angle_after_native_failure' })
+    $decisions.clean_quality_profile = 'safe'
+    $retryReason = $(if ($driver -eq 'opengl3_angle') { 'renderer_failed_safe_fallback' } else { 'native_renderer_failed_angle_fallback' })
     Save-Decision
-    $cleanResult = Start-HugoObservedGame -Root $cleanRoot -Driver 'opengl3_angle' -Profile '--graphics-safe-profile'
+    $cleanResult = Start-HugoObservedGame -Root $cleanRoot -Driver 'opengl3_angle' -Profile '--graphics-safe-profile' -NeuralStatusPath $liveStatusPath -Session $session -InactiveReason $retryReason
 }
 $decisions.clean_exit = $cleanResult.exit_code
 $decisions.completed_utc = [DateTime]::UtcNow.ToString('o')

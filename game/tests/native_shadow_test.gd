@@ -6,6 +6,7 @@ extends SceneTree
 const PlayerScript = preload("res://scripts/player.gd")
 const MaterialsScript = preload("res://scripts/native_materials.gd")
 const LevelScript = preload("res://scripts/original_level.gd")
+const GeometryScript = preload("res://scripts/native_geometry_quality.gd")
 const FIXTURE_DIRECTORY: String = "user://native_shadow_test"
 const SOURCE_MODEL: String = "res://assets/generated/hugo.glb"
 const COEFFICIENT: float = 0.44999998062849045
@@ -41,14 +42,19 @@ func _run() -> void:
 	root.size = Vector2i(800, 600)
 	root.content_scale_size = Vector2i(800, 600)
 	_create_fixture_assets()
+	# Exact source-quad assertions require the original imported mesh. Enhanced
+	# terrain support is exercised separately below, with all assertions intact.
+	GeometryScript.set_enabled(false)
 	await _exercise(FIXTURE_DIRECTORY.path_join("hugo.glb"), "fixture")
 	await _reversed_floor_support()
 	if not fixture_only and ResourceLoader.exists(SOURCE_MODEL, "PackedScene") \
 			and FileAccess.file_exists("res://assets/generated/animation_manifest.json"):
 		await _exercise(SOURCE_MODEL, "source")
+		GeometryScript.set_enabled(true)
 		await _beach_support()
 	else:
 		skipped.append("Imported Hugo/shadow: unavailable or fixture-only requested.")
+		GeometryScript.set_enabled(true)
 	_release()
 	var result: Dictionary = {"kind": "native_shadow_scene_input_render_regression", "checks": checks,
 		"failures": failures, "skipped": skipped, "evidence": evidence,

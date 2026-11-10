@@ -5,6 +5,8 @@ extends SceneTree
 const MaterialsScript = preload("res://scripts/native_materials.gd")
 const MotionScript = preload("res://scripts/native_actor_motion.gd")
 const SamplerScript = preload("res://scripts/original_animation.gd")
+const GeometryScript = preload("res://scripts/native_geometry_quality.gd")
+const TexturePackScript = preload("res://scripts/hd_texture_pack.gd")
 var failures: Array[String] = []
 var checks: int = 0
 
@@ -23,6 +25,9 @@ func _write_json(path: String, value: Dictionary) -> void:
 	file.close()
 
 func _run() -> void:
+	# This fixture asserts exact native vertex/UV IDs and morph bytes. The
+	# separate geometry suite checks weighted attributes on rebuilt surfaces.
+	GeometryScript.set_enabled(false)
 	var directory: String = "user://native_material_test"
 	DirAccess.make_dir_recursive_absolute(directory)
 	var red: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
@@ -154,9 +159,35 @@ func _run() -> void:
 	sampler._apply_pose()
 	_check((adapted.get_shader_parameter("albedo_texture") as Texture2D).get_image().get_data() == red.get_data(),
 		"Hugo original animation forwards its native visual phase")
+	var rock_mesh := ArrayMesh.new()
+	rock_mesh.resource_name = "ImportedScene_BoundaryRockSource"
+	rock_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var rock_source := StandardMaterial3D.new()
+	rock_source.resource_name = "rock__hugo_blend_3"
+	rock_source.albedo_texture = material.albedo_texture
+	rock_source.texture_repeat = false
+	rock_mesh.surface_set_material(0, rock_source)
+	var neighbour := MeshInstance3D.new()
+	neighbour.mesh = rock_mesh
+	owner_visual.add_child(neighbour)
+	var bank: ShaderMaterial = MaterialsScript.prepare_boundary_material(instance, {
+		"material_source_mesh_name":"BoundaryRockSource", "material_source_surface_index":0,
+		"material_source_texture_key":TexturePackScript.get_source_key(rock_source.albedo_texture),
+		"texture_repeat":true}) as ShaderMaterial
+	_check(bank != null and TexturePackScript.get_bound_source(bank) == rock_source.albedo_texture,
+		"permanent bank borrows the exact native neighbour texture without reloading the scene")
+	_check(not rock_source.texture_repeat and rock_mesh.surface_get_material(0) == rock_source,
+		"new physical UV mapping leaves the neighbour's authored clamp material unchanged")
+	TexturePackScript.set_enabled(false)
+	_check(bank.shader.code.contains("filter_nearest, repeat_enable"),
+		"Original bank retains physical tiling while using the original texture filter")
+	TexturePackScript.set_enabled(true)
+	_check(bank.shader.code.contains("filter_linear_mipmap_anisotropic, repeat_enable"),
+		"Enhanced bank restores anisotropic mipmapped tiling through the live quality binding")
 	motion.free()
 	sampler.free()
 	owner_visual.free()
+	GeometryScript.set_enabled(true)
 	await process_frame
 	print("NATIVE MATERIAL TEST: ", "PASS" if failures.is_empty() else "FAIL", " ", checks - failures.size(), "/", checks)
 	quit(0 if failures.is_empty() else 1)

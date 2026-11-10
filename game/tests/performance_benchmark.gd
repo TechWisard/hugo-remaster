@@ -7,11 +7,15 @@ const Probe = preload("res://tests/performance_level_probe.gd")
 const Graphics = preload("res://scripts/native_graphics_settings.gd")
 const ResourceData = preload("res://scripts/native_resource_data.gd")
 const Graph = preload("res://scripts/native_graph_colliders.gd")
+const Materials = preload("res://scripts/native_materials.gd")
+const Geometry = preload("res://scripts/native_geometry_quality.gd")
 var output_path: String = "user://performance_benchmark.json"
 var selected: String = ""
 var sample_frames: int = 180
 var rounds: int = 3
 var random_seed: int = 24680
+var quality: String = "enhanced"
+var texture_limit: int = 0
 var rows: Array[Dictionary] = []
 var failures: Array[String] = []
 
@@ -28,6 +32,10 @@ func _initialize() -> void:
 			rounds = clampi(int(arg.trim_prefix("--benchmark-rounds=")), 1, 5)
 		elif arg.begins_with("--benchmark-seed="):
 			random_seed = int(arg.trim_prefix("--benchmark-seed="))
+		elif arg.begins_with("--benchmark-quality="):
+			quality = arg.trim_prefix("--benchmark-quality=")
+		elif arg.begins_with("--benchmark-texture-limit="):
+			texture_limit = int(arg.trim_prefix("--benchmark-texture-limit="))
 	_run.call_deferred()
 
 
@@ -42,6 +50,12 @@ func _run() -> void:
 			AudioServer.set_bus_name(AudioServer.bus_count - 1, bus)
 	var options: Dictionary = Graphics.defaults()
 	options.vsync = false
+	if not quality in ["original","enhanced"] or not texture_limit in [0,512,1024,2048]:
+		push_error("Benchmark quality must be original/enhanced and texture limit 0/512/1024/2048")
+		quit(1)
+		return
+	options.texture_quality = quality
+	options.texture_limit = texture_limit
 	Graphics.apply(root, options, false)
 	var catalog: Dictionary = _json("res://assets/generated/campaign.json")
 	var gameplay: Dictionary = _json("res://assets/generated/gameplay_manifest.json")
@@ -71,6 +85,7 @@ func _run() -> void:
 			var process_times := PackedFloat64Array()
 			var physics_times := PackedFloat64Array()
 			var previous: int = Time.get_ticks_usec()
+			Materials.reset_animation_profile()
 			for tick: int in range(sample_frames):
 				await process_frame
 				var now: int = Time.get_ticks_usec()
@@ -78,6 +93,7 @@ func _run() -> void:
 				previous = now
 				process_times.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
 				physics_times.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
+			var material_profile: Dictionary = Materials.stop_animation_profile()
 			var row: Dictionary = {"chapter": entry.id, "round": round_index,
 				"json_ms": json_ms, "ready_ms": load_ms, "stage_ms": level.get("stage_ms"),
 				"frame_wall_ms": _summary(frame_times), "frame_samples_ms": frame_times,
@@ -89,6 +105,7 @@ func _run() -> void:
 				"resources": Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
 				"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 				"active_actors": level.state_actors.size(), "player_on_floor": level.player.is_on_floor(),
+				"geometry": Geometry.get_status(), "material_animation_cpu": material_profile,
 				"collider_before": collider_before, "collider_after": _collider_counters(level)}
 			rows.append(row)
 			print("PERFORMANCE_CHAPTER ", JSON.stringify(row))
@@ -101,6 +118,7 @@ func _run() -> void:
 		"window": [root.size.x, root.size.y], "msaa": root.msaa_3d, "render_scale": root.scaling_3d_scale,
 		"samples_per_chapter": sample_frames, "warmup_frames": 60, "rounds": rounds,
 		"rng_seed_per_chapter": random_seed,
+		"quality": quality, "texture_limit": texture_limit,
 		"scene": "normal spawn, idle physics, no teleport, fixed 60 Hz simulation",
 		"frame_metric": "wall intervals; includes scheduling/rendering; not a hardware-independent FPS promise",
 		"engine_monitor_warning": "Godot monitor snapshots update periodically and can include preceding loading; use wall samples for interval comparisons",

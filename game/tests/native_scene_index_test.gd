@@ -42,17 +42,21 @@ func _run() -> void:
 		instance.mesh = mesh
 		parent.add_child(instance)
 		Materials.apply_recursive(instance)
-		var effective: BaseMaterial3D = instance.get_active_material(0)
-		_check(effective.vertex_color_use_as_albedo == colored, "format bit preserves color presence %s" % colored)
+		var effective: Material = instance.get_active_material(0)
+		_check(effective is ShaderMaterial, "native blend selector keeps its shader material %s" % colored)
+		var uses_colors: Variant = (effective as ShaderMaterial).get_shader_parameter("use_vertex_color") if effective is ShaderMaterial else null
+		_check(uses_colors is bool and uses_colors == colored, "format bit preserves color presence %s" % colored)
 		_check(not original.vertex_color_use_as_albedo, "source material untouched")
 	var box := BoxMesh.new()
 	var plain := StandardMaterial3D.new()
 	plain.resource_name = "primitive__hugo_blend_3"
 	plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var primitive_colors: bool = Materials.surface_has_vertex_colors(box, 0)
-	var prepared: BaseMaterial3D = Materials.prepare_material(plain, primitive_colors)
+	var prepared: Material = Materials.prepare_material(plain, primitive_colors)
 	_check(prepared != plain, "PrimitiveMesh gets a private prepared material")
-	_check(not primitive_colors and not prepared.vertex_color_use_as_albedo, "PrimitiveMesh without colors preserves its appearance")
+	_check(prepared is ShaderMaterial, "PrimitiveMesh retains the native blend shader")
+	var primitive_uses_colors: Variant = (prepared as ShaderMaterial).get_shader_parameter("use_vertex_color") if prepared is ShaderMaterial else null
+	_check(not primitive_colors and primitive_uses_colors is bool and not primitive_uses_colors, "PrimitiveMesh without colors preserves its appearance")
 	parent.queue_free()
 	await process_frame
 	print("NATIVE_SCENE_INDEX ", JSON.stringify({"checks": checks, "failures": failures}))

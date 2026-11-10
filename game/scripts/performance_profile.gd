@@ -5,9 +5,9 @@ extends RefCounted
 
 const ORDER: Array[String] = ["quality", "balanced", "performance"]
 const PRESETS: Dictionary = {
-	"quality": {"msaa": 4, "render_scale": 1.0, "texture_quality": "enhanced"},
-	"balanced": {"msaa": 2, "render_scale": 1.0, "texture_quality": "enhanced"},
-	"performance": {"msaa": 0, "render_scale": 0.75, "texture_quality": "original"}
+	"quality": {"msaa": 4, "render_scale": 1.0, "texture_quality": "enhanced", "texture_limit": 0},
+	"balanced": {"msaa": 2, "render_scale": 1.0, "texture_quality": "enhanced", "texture_limit": 1024},
+	"performance": {"msaa": 0, "render_scale": 0.75, "texture_quality": "enhanced", "texture_limit": 512}
 }
 
 

@@ -3,11 +3,13 @@ extends RefCounted
 ## Live options supported by the Compatibility renderer; save values are portable.
 
 const TexturePackScript = preload("res://scripts/hd_texture_pack.gd")
-const DEFAULTS: Dictionary = {"msaa": 4, "render_scale": 1.0, "vsync": true, "texture_quality": "enhanced",
+const GeometryQualityScript = preload("res://scripts/native_geometry_quality.gd")
+const DEFAULTS: Dictionary = {"msaa": 4, "render_scale": 1.0, "vsync": true, "texture_quality": "enhanced", "texture_limit": 0,
 	"display_mode": "windowed", "window_width": 0, "window_height": 0}
 const MSAA_MODES: Dictionary = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X,
 	4: Viewport.MSAA_4X, 8: Viewport.MSAA_8X}
 const RENDER_SCALES: Array[float] = [0.5, 0.67, 0.75, 1.0, 1.5, 2.0]
+const TEXTURE_LIMITS: Array[int] = [0, 2048, 1024, 512]
 const DISPLAY_MODES: Array[String] = ["windowed", "borderless", "fullscreen"]
 const DISPLAY_KEYS: Array[String] = ["display_mode", "window_width", "window_height"]
 const UI_BASE_SIZE := Vector2i(1280, 720)
@@ -35,6 +37,10 @@ static func sanitize(raw: Variant) -> Dictionary:
 		result.vsync = raw.vsync
 	if raw.get("texture_quality") in ["original", "enhanced"]:
 		result.texture_quality = raw.texture_quality
+	var texture_limit: Variant = raw.get("texture_limit", 0)
+	if (texture_limit is int or texture_limit is float) and is_finite(float(texture_limit)) \
+			and float(texture_limit) == floorf(float(texture_limit)) and int(texture_limit) in TEXTURE_LIMITS:
+		result.texture_limit = int(texture_limit)
 	if raw.get("display_mode") is String and str(raw.display_mode) in DISPLAY_MODES:
 		result.display_mode = raw.display_mode
 	var width: Variant = raw.get("window_width", 0)
@@ -58,7 +64,12 @@ static func apply(viewport: Viewport, raw: Dictionary, manage_window: bool = tru
 				apply_window(viewport as Window, options)
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if options.vsync else DisplayServer.VSYNC_DISABLED)
-	TexturePackScript.set_enabled(options.texture_quality == "enhanced" and TexturePackScript.is_available())
+	# The selected quality also controls analytical effects and filtered source
+	# materials in a source-only checkout. Optional bitmap availability is a
+	# separate coverage fact, not a reason to override the user's choice.
+	TexturePackScript.set_max_texture_dimension(int(effective.texture_limit))
+	TexturePackScript.set_enabled(options.texture_quality == "enhanced")
+	GeometryQualityScript.set_enabled(options.texture_quality == "enhanced")
 	return options
 
 
@@ -177,6 +188,7 @@ static func effective_options(raw: Dictionary) -> Dictionary:
 	if safe_profile_requested():
 		options.msaa = 2
 		options.render_scale = 1.0
+		options.texture_limit = 512
 	return options
 
 

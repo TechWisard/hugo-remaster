@@ -243,6 +243,21 @@ class GameplayDecoder:
                 "cues": cues, "meaning_confidence": "native_sound_sequence_reader_verified",
                 "evidence_va": ["0x004158ee", "0x0041592b", "0x0041597b", "0x00415a16"]}
 
+    def player_action_sounds(self, record: Record) -> dict:
+        """CHugo's fourteen embedded CSoundSequences follow visual action IDs.
+
+        Constructor 0x401E44..0x401E61 binds 14 objects at +0xCC, stride 20.
+        Update 0x402D98..0x402DAC indexes that table using actor+0x240 and
+        submits the current normalized visual phase to CSoundSequence.
+        """
+        require(record.kind == 10000 and record.header_size >= 0x1E4,
+                f"{record.label}: missing player action sound table")
+        return {str(action): {"action_index": action,
+                             **self.sound_sequence(record, 0xCC + action * 20),
+                             "player_binding_evidence_va": ["0x00401e44", "0x00401e58",
+                                                            "0x00402d98", "0x00402dac"]}
+                for action in range(14)}
+
     def state_actor(self, record: Record) -> dict:
         reader = Reader(record.data, record.label)
         death_visual = None
@@ -337,6 +352,7 @@ class GameplayDecoder:
         if record.kind == 10000:
             out["health_bar"] = self.ref_field(record, 0x1E4)
             out["movement"] = decode_player_configuration(record)
+            out["action_sound_sequences"] = self.player_action_sounds(record)
             out["spawn_verified_by"] = ["0x0040223c", "0x00402245", "0x0040224f", "0x00402273"]
         elif record.kind == 10101:
             out.update(camera_resource=self.ref_field(record, 0x14), target=self.ref_field(record, 0x24),

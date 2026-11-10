@@ -112,6 +112,22 @@ class Dlss5PackTests(unittest.TestCase):
         self.assertNotIn("nvngx_dlss.dll", paths)
         self.assertNotIn("nvngx_dlssg.dll", paths)
 
+    def test_visual_helper_is_required_and_pinned_in_authored_manifest(self):
+        self.lock["required_authored_files"] = ["Hugo-NR-ImageCapture.cs"]
+        with self.assertRaisesRegex(ValueError, "Missing required authored template"):
+            self.build(self.root / "missing_helper")
+        helper = self.sources / "templates/Hugo-NR-ImageCapture.cs"
+        helper.write_text("// authored capture fixture; never executed\n")
+        result = self.build(self.root / "with_helper")
+        pinned = next(item for item in result["authored_templates"] if item["path"] == helper.name)
+        self.assertEqual(pinned["sha256"], PACK.digest_file(helper))
+        self.assertEqual(pinned["size"], helper.stat().st_size)
+        payload = next(item for item in result["files"] if item["path"] == helper.name)
+        self.assertEqual(payload["sha256"], pinned["sha256"])
+        self.assertFalse(payload["mutable"])
+        lock = json.loads((REPO / "integrations/dlss5/dependencies.lock.json").read_text())
+        self.assertTrue({"Check-Hugo-NR-Image.cmd", "Check-Hugo-NR-Image.ps1", "Hugo-NR-ImageCapture.cs"}.issubset(lock["required_authored_files"]))
+
 
 if __name__ == "__main__":
     unittest.main()

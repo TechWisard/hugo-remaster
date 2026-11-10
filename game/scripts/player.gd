@@ -13,6 +13,8 @@ signal death_animation_finished
 signal native_fatal_landed
 
 const VisualScript = preload("res://scripts/player_visual.gd")
+const ContactSeparation = preload("res://scripts/native_contact_separation.gd")
+const Step = preload("res://scripts/native_step.gd")
 ## CHugoStateDamage entry/update: 0x403AA0..0x403B3D / 0x403950..0x403A49.
 ## Source impulses are per 300-Hz tick; geometry uses the existing 0.01 scale.
 const NATIVE_DAMAGE_HORIZONTAL_SPEED: float = 9.0
@@ -119,6 +121,7 @@ var _native_surface_prevents_standing: bool = false
 var _native_damage_active: bool = false
 var _native_pending_death: bool = false
 var _native_damage_impulse := Vector3.ZERO
+var _contact_separation: RefCounted = ContactSeparation.new()
 
 
 func set_native_configuration(configuration: Dictionary) -> bool:
@@ -661,6 +664,11 @@ func _start_jump() -> void:
 
 
 func _native_move(move_direction: Vector3, grounded: bool, delta: float) -> void:
+	if _contact_separation.resolve(self, _collider,
+			_native_damage_impulse if _native_damage_active else Vector3.ZERO) == ContactSeparation.Result.BLOCKED:
+		# Keep an unperformed launch intact. Zeroing its vertical velocity would
+		# turn the remembered floor flag into a false Hurt/fatal landing.
+		return
 	if _native_damage_active:
 		_native_damage_move(delta)
 		return
@@ -716,10 +724,26 @@ func _native_move(move_direction: Vector3, grounded: bool, delta: float) -> void
 	var final_velocity: Vector3 = velocity
 	var commanded_velocity: Vector3 = displacement / delta if delta > 0.0 else Vector3.ZERO
 	velocity = commanded_velocity
+	var before_move: Vector3 = global_position
 	move_and_slide()
+	var actual_horizontal: Vector3 = global_position - before_move
+	actual_horizontal.y = 0.0
+	if grounded and not _jump_in_progress and not _native_pending_death \
+			and _native_input_magnitude > 0.0 and actual_horizontal.is_zero_approx():
+		# A horizontal command can stall on an artificial edge normal between
+		# two walkable triangles. Retry only along proven static floor, using
+		# the current full body (also when crouching) and unchanged native X/Z.
+		if Step.try_ground_tangent(self, displacement):
+			velocity = commanded_velocity
+	var stepped: bool = false
+	if grounded and not is_crouching and not _jump_in_progress and not _native_pending_death:
+		var remainder: Vector3 = displacement - (global_position - before_move)
+		remainder.y = 0.0
+		if remainder.dot(Vector3(displacement.x, 0.0, displacement.z)) > 0.0:
+			stepped = Step.try_step(self, remainder, _native_standing_box.size.y * 0.06)
 	# Keep per-tick momentum, plus platform carry returned by Godot, while
 	# projecting blocked components off actual contact normals.
-	velocity = final_velocity + velocity - commanded_velocity
+	velocity = final_velocity if stepped else final_velocity + velocity - commanded_velocity
 	for index: int in range(get_slide_collision_count()):
 		var normal: Vector3 = get_slide_collision(index).get_normal()
 		if velocity.dot(normal) < 0.0:
@@ -763,9 +787,18 @@ func _camera_relative_direction(input_vector: Vector2) -> Vector3:
 		return Vector3(input_vector.x, 0.0, input_vector.y)
 
 	var forward: Vector3 = -movement_camera.global_basis.z
+	if movement_camera.has_meta("hugo_native_movement_forward"):
+		# The native rail camera may sidestep a visible map boundary. Its visual
+		# orbit must not rotate held movement input or steer Hugo along that wall.
+		forward = movement_camera.get_meta("hugo_native_movement_forward") as Vector3
 	forward.y = 0.0
 	if forward.length_squared() < 0.0001:
-		forward = Vector3.FORWARD
+		# A collision-safe camera can look almost straight down beside a wall.
+		# Its right axis still carries yaw; keep that heading instead of
+		# abruptly switching the player's controls to world -Z.
+		var camera_right: Vector3 = movement_camera.global_basis.x
+		camera_right.y = 0.0
+		forward = Vector3.UP.cross(camera_right) if camera_right.length_squared() > 0.0001 else Vector3.FORWARD
 	forward = forward.normalized()
 	var right: Vector3 = forward.cross(Vector3.UP)
 	return right * input_vector.x - forward * input_vector.y

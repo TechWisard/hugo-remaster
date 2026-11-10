@@ -20,6 +20,7 @@ from .mdic import sha256, write_json
 from .mesh import Mesh, Selection, decode_material_flags, parse_mesh
 from .scene_graph import (GRAPH_POINTER_FIELDS, TRANSFORM_KINDS, ObjectGraph,
                           SceneIndex, SourceTransform, parse_collision_mesh, parse_graph, parse_transform)
+from .terrain_collision import complete_terrain_collision
 
 
 PLAYABLE_MAIN_GROUPS = (6, 17, 27, 36, 46, 55, 59, 69)
@@ -44,6 +45,7 @@ FIDELITY_LIMITS = [
     "The player's auxiliary graph is the recovered ground shadow, exported separately in animation_manifest.hugo_shadow. Native scale and blink conditions are decoded; Godot support queries do not reproduce the complete native collision solver. Type-2000 is a non-mesh camera visual.",
     "Backmap geometry requires its recovered camera-centered placement policy in the runtime.",
     "Native terrain collision triangles, quadtree and numeric surface IDs are recovered; a Godot physics response still differs from native XY height queries.",
+    "Remaster terrain contacts supplement that XY subset using existing opaque render triangles. Texture animations require matching native non-damaging contact evidence; unknown animations, cutouts and blended surfaces are excluded. No triangles span authored gaps.",
     "Materials retain decoded native blend selectors and vertex alpha; additive and inverse-source-color modes require the runtime adapter because core glTF cannot express them.",
     "Native texture/color/UV samples are exported separately and keyed by source mesh/part; the runtime must sample each instance's visual phase.",
     "Unlit double-sided compatibility materials retain source colors; native culling, lighting and transparent sorting remain incomplete.",
@@ -696,6 +698,14 @@ def export_level(assembly: LevelAssembly, catalog: Catalog, output: Path) -> dic
     from .scopes import decode_scope_policy
     tracks = {}
     collision_meshes = {}
+    opaque_texture_cache = {}
+
+    def opaque_texture(group: int, texture_id: int) -> bool:
+        texture = catalog.texture(group, texture_id)
+        if texture.sha256 not in opaque_texture_cache:
+            alpha = np.frombuffer(catalog.container.payload(texture), dtype=np.uint8)[3::4]
+            opaque_texture_cache[texture.sha256] = bool((alpha == 255).all())
+        return opaque_texture_cache[texture.sha256]
     effect_definitions = {}
     index = SceneIndex(catalog)
     scope_policy = decode_scope_policy(catalog, assembly.main_group)
@@ -732,12 +742,20 @@ def export_level(assembly: LevelAssembly, catalog: Catalog, output: Path) -> dic
             ref = owner["mesh_instances"][0]["source_mesh"]
             key = f"g{ref['group']:03d}_r{ref['record']:04d}"
             if key not in collision_meshes:
-                collision = parse_collision_mesh(catalog.record(ref["group"], ref["record"]))
+                source_record = catalog.record(ref["group"], ref["record"])
+                source_mesh = parse_mesh(source_record)
+                collision = parse_collision_mesh(source_record, source_mesh)
                 if collision is None:
                     owner["collision_mesh_key"] = None
                     owner["collision_geometry"] = "none_in_source"
                     continue
                 points = np.concatenate([t.vertices for t in collision.triangles])
+                # CDefaultSegment's verified 20 x 52-byte native surface table.
+                # Only explicit zero damage can establish solid animated belts.
+                segment_record = catalog.record(owner["source_group"], owner["source_record"])
+                segment_reader = Reader(segment_record.data, segment_record.label)
+                surface_damage = {i: segment_reader.unpack("<f", 0x9C + i * 52 + 12)[0]
+                                  for i in range(20)}
                 collision_meshes[key] = dict(source_group=collision.group, source_record=collision.record,
                                              source_root_offset=collision.root_offset,
                                              source_quadtree=list(collision.nodes),
@@ -748,7 +766,8 @@ def export_level(assembly: LevelAssembly, catalog: Catalog, output: Path) -> dic
                                              triangle_reference_count=collision.triangle_reference_count,
                                              leaf_count=collision.leaf_count,
                                              coordinate_space="mesh local, same axes/scale as GLB",
-                                             surface_type_semantics="native numeric ID; labels are not inferred")
+                                             surface_type_semantics="native numeric ID; labels are not inferred",
+                                             remaster_collision=complete_terrain_collision(source_mesh, collision, opaque_texture, surface_damage))
             owner["collision_mesh_key"] = key
             owner["collision_geometry"] = "native_mesh_quadtree"
     entry["validation"]["native_collision"] = dict(
@@ -756,6 +775,7 @@ def export_level(assembly: LevelAssembly, catalog: Catalog, output: Path) -> dic
         unique_triangles=sum(m["triangle_count"] for m in collision_meshes.values()),
         triangle_references=sum(m["triangle_reference_count"] for m in collision_meshes.values()),
         checked_every_source_face_index=True, render_triangle_fallbacks=0,
+        authored_solid_triangle_supplements=sum(m["remaster_collision"]["triangle_count"] for m in collision_meshes.values()),
         segments_without_source_tree=sum(o.get("collision_geometry") == "none_in_source" for o in assembly.owners))
     entry["validation"]["native_scopes"] = scope_policy["validation"]
     manifest = dict(schema_version=1, **entry, source_container_sha256=sha256(catalog.container.data),

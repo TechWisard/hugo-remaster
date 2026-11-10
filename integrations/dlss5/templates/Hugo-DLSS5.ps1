@@ -73,9 +73,144 @@ function Get-HugoNeuralEvidence {
     }
     $found = [ordered]@{}
     foreach ($key in $markers.Keys) { $found[$key] = $Log.Contains($markers[$key]) }
-    $failureLines = @($Log -split "`r?`n" | Where-Object { $_ -match "OpenGL bridge stopped:|CreateFeature .*failed:|Init_Ext failed|GPU device was removed|NR could not start|NR feature creation failed:|NR evaluate failed:|NR disabled after|Suspended: game needs VRAM|NR's recording .*threw|The back buffer could not be shared" })
-    $ready = $found.opengl_bridge -and $found.nr_feature_created -and $found.enabled_evaluation -and $found.frame_returned -and $failureLines.Count -eq 0
-    return [ordered]@{ markers = $found; neural_frame_reported = [bool]$ready; motion_resource_reported = [bool]($Log -match 'enabled D3D12 evaluation recorded[^\r\n]*motion true'); failures = $failureLines }
+    $failureLines = @($Log -split "`r?`n" | Where-Object { $_ -match "OpenGL bridge stopped:|CreateFeature .*failed:|Init_Ext failed|GPU device was removed|NR could not start|Uplift could not start|NR feature creation failed:|NR evaluate failed:|NR disabled after|Suspended: game needs VRAM|NR's recording .*threw|The back buffer could not be shared" })
+    $toggles = [regex]::Matches($Log, 'Hotkey: NR (enabled|disabled)|Enabled set to ([01]) in ReShade.ini')
+    $disabled = $false
+    $frameAfterEnable = $true
+    if ($toggles.Count) {
+        $lastToggle = $toggles[$toggles.Count - 1]
+        $disabled = $lastToggle.Value -match 'disabled|set to 0'
+        # The bridge emits its frame marker once per enable, not every frame.
+        # Re-enabling must produce a new returned frame before its old evidence
+        # is reused. This is still no readback proof or processed-frame count.
+        $frameAfterEnable = $Log.LastIndexOf($markers.frame_returned) -gt $lastToggle.Index
+    }
+    $diagnostics = @($Log -split "`r?`n" | Where-Object { $_.Contains('NR diagnostic: enabled D3D12 evaluation recorded') })
+    $lastDiagnostic = if ($diagnostics.Count) { $diagnostics[$diagnostics.Count - 1] } else { $null }
+    $ready = $found.opengl_bridge -and $found.nr_feature_created -and $found.enabled_evaluation -and $found.frame_returned -and $failureLines.Count -eq 0 -and -not $disabled -and $frameAfterEnable
+    $boundedFailures = @($failureLines | Select-Object -Last 12 | ForEach-Object { if ($_.Length -gt 1024) { $_.Substring(0, 1024) } else { $_ } })
+    if ($null -ne $lastDiagnostic -and $lastDiagnostic.Length -gt 2048) { $lastDiagnostic = $lastDiagnostic.Substring(0, 2048) }
+    return [ordered]@{ markers = $found; neural_frame_reported = [bool]$ready; motion_resource_reported = [bool]($Log -match 'enabled D3D12 evaluation recorded[^\r\n]*motion true'); failures = $boundedFailures; disabled_reported = $disabled; last_evaluation_diagnostic = $lastDiagnostic; frames_processed = $null; display_output_verified = $false; evidence_kind = 'once_per_enable_backend_markers' }
+}
+
+function Get-HugoIniSection {
+    param([string]$Path, [string]$Section)
+    $values = @{}
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $values }
+    $current = ''
+    foreach ($line in (Get-Content -LiteralPath $Path)) {
+        if ($line -match '^\s*\[([^\]]+)\]\s*$') { $current = $Matches[1]; continue }
+        if ($current -eq $Section -and $line -match '^\s*([^=;#]+?)\s*=\s*(.*)$') { $values[$Matches[1].Trim()] = $Matches[2].Trim() }
+    }
+    return $values
+}
+
+function Get-HugoNeuralConfiguration {
+    param([string]$Root)
+    $iniPath = Join-Path $Root 'ReShade.ini'
+    $uplift = Get-HugoIniSection -Path $iniPath -Section 'Uplift'
+    # Defaults are pinned to the packaged Uplift 1.8 source, not guesses based on
+    # an adapter name. Include output strengths: successful Evaluate can still
+    # be blended back to the original image by a user-modified configuration.
+    $defaults = [ordered]@{ Enabled = 0; Intensity = 1; TransferStrength = 1; ColorStrength = 1; LocalTone = 1; LocalStructure = 1; SkinStructure = 1; AutoMask = 1; MaskBlendMode = 1; Mask = 0; Source = 0; MotionVectors = 0; PassCount = 1; Preset = 1; KeepFaces = 0 }
+    $settings = [ordered]@{}
+    $invalid = @()
+    foreach ($key in $defaults.Keys) {
+        $value = [double]$defaults[$key]
+        if ($uplift.ContainsKey($key)) {
+            if (-not [double]::TryParse($uplift[$key], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$value) -or [double]::IsNaN($value) -or [double]::IsInfinity($value)) { $invalid += $key; $value = [double]$defaults[$key] }
+        }
+        $settings[$key] = $value
+    }
+    $general = Get-HugoIniSection -Path $iniPath -Section 'GENERAL'
+    $presetRelative = if ($general.ContainsKey('PresetPath')) { ([string]$general.PresetPath).Replace('\', '/') } else { 'ReShadePreset_DLSS5.ini' }
+    if ($presetRelative.StartsWith('./')) { $presetRelative = $presetRelative.Substring(2) }
+    $preset = @{}
+    $presetInspected = $false
+    try {
+        $presetPath = Get-HugoSafePath -Root $Root -Relative $presetRelative
+        $preset = Get-HugoIniSection -Path $presetPath -Section ''
+        $presetInspected = Test-Path -LiteralPath $presetPath -PathType Leaf
+    } catch { }
+    $techniques = if ($preset.ContainsKey('Techniques')) { [string]$preset.Techniques } else { '' }
+    $warnings = @()
+    if ($settings.MaskBlendMode -eq 0) { $warnings += 'native_mask_mode_zero_can_reduce_visible_change' }
+    if ($techniques -notmatch '(^|,)Uplift@Uplift\.fx(,|$)') { $warnings += 'uplift_marker_not_enabled_in_pack_preset' }
+    if ($settings.MotionVectors -eq 4 -and $techniques -notmatch 'Lumenite_Kernel@lumenite_Kernel\.fx') { $warnings += 'selected_lumenite_not_enabled_in_pack_preset' }
+    if (-not $presetInspected) { $warnings += 'configured_preset_not_inspected' }
+    return [ordered]@{ present = (Test-Path -LiteralPath $iniPath -PathType Leaf); settings = $settings; configured_preset = $presetRelative; preset_inspected = $presetInspected; configured_techniques = $techniques; invalid_numeric_settings = $invalid; warnings = $warnings; runtime_values_read_back = $false }
+}
+
+function Get-HugoImageTestClassification {
+    param([bool]$NativeInputsIdentical, [bool]$BackendReported, $Differences)
+    $result = [ordered]@{ status = 'inconclusive'; reason_code = 'native_input_changed'; display_output_verified = $false }
+    if (-not $NativeInputsIdentical) { return $result }
+    if (-not $BackendReported) { $result.reason_code = 'enabled_phase_backend_not_confirmed'; return $result }
+    foreach ($key in @('off_repeat', 'on_repeat', 'off_return', 'off_on')) {
+        if (-not $Differences[$key].FirstNonuniform -or -not $Differences[$key].SecondNonuniform) { $result.reason_code = 'blank_or_uniform_desktop_capture'; return $result }
+    }
+    # The off/off control and off return must remain stable. Otherwise an OS
+    # overlay, a moving window or an un-frozen input could imitate an NR change.
+    foreach ($key in @('off_repeat', 'off_return')) {
+        $delta = $Differences[$key]
+        if ($delta.MeanAbsoluteRgb -gt 0.05 -or $delta.ChangedPixels -gt [Math]::Max(16, $delta.Pixels * 0.0001)) { $result.reason_code = 'desktop_off_control_not_stable'; return $result }
+    }
+    $change = $Differences.off_on
+    $noise = [Math]::Max($Differences.off_repeat.CentralMeanAbsoluteRgb, $Differences.off_return.CentralMeanAbsoluteRgb)
+    if ($change.CentralMeanAbsoluteRgb -le [Math]::Max(0.25, $noise * 10) -or $change.CentralChangedPixels -le [Math]::Max(256, $change.CentralPixels * 0.001)) {
+        $result.status = 'no_visible_change'; $result.reason_code = 'backend_reported_but_frozen_display_change_below_threshold'; return $result
+    }
+    if ($Differences.on_repeat.CentralMeanAbsoluteRgb -gt [Math]::Max(0.1, $change.CentralMeanAbsoluteRgb * 0.5)) { $result.reason_code = 'neural_output_not_settled'; return $result }
+    $result.status = 'display_change_verified'
+    $result.reason_code = 'frozen_native_input_and_reversible_desktop_difference'
+    $result.display_output_verified = $true
+    return $result
+}
+
+function New-HugoNeuralLiveStatus {
+    param([string]$Session, [int]$GameProcessId, [DateTime]$StartedUtc, [switch]$ObserveNeural, [string]$InactiveReason = 'neural_not_requested', [string]$Log = '', [bool]$FreshLog = $false, $Configuration = $null)
+    $status = [ordered]@{ schema = 1; session = $Session; provider = 'none'; state = 'inactive'; reason_code = $InactiveReason; frames_processed = $null; updated_utc = [DateTime]::UtcNow.ToString('o'); process_id = $GameProcessId; started_utc = $StartedUtc.ToUniversalTime().ToString('o'); display_output_verified = $false }
+    if (-not $ObserveNeural) { return $status }
+    $status.provider = 'gitc_uplift_opengl'
+    $status.state = 'probing'
+    $status.reason_code = 'awaiting_current_process_backend_frame'
+    if (([DateTime]::UtcNow - $StartedUtc.ToUniversalTime()).TotalSeconds -ge 30) { $status.state = 'inactive'; $status.reason_code = 'no_current_process_backend_frame_yet' }
+    if ($null -ne $Configuration) {
+        $status.configuration = $Configuration
+        if (-not $Configuration.present) { $status.state = 'inactive'; $status.reason_code = 'configuration_missing'; return $status }
+        if ($Configuration.settings.Enabled -eq 0) { $status.state = 'inactive'; $status.reason_code = 'disabled_in_configuration'; return $status }
+        if ($Configuration.settings.Intensity -le 0) { $status.state = 'inactive'; $status.reason_code = 'zero_intensity'; return $status }
+        if ($Configuration.settings.TransferStrength -eq 0 -and $Configuration.settings.ColorStrength -eq 0) { $status.state = 'inactive'; $status.reason_code = 'zero_result_strength'; return $status }
+    }
+    if (-not $FreshLog) { return $status }
+    $evidence = Get-HugoNeuralEvidence -Log $Log
+    $status.evidence = $evidence
+    if ($evidence.failures.Count) { $status.state = 'failed'; $status.reason_code = 'backend_failure'; return $status }
+    if ($evidence.disabled_reported) { $status.state = 'inactive'; $status.reason_code = 'disabled_by_backend'; return $status }
+    if ($evidence.neural_frame_reported) { $status.state = 'backend_reported'; $status.reason_code = 'backend_frame_reported_display_unverified' }
+    return $status
+}
+
+function Write-HugoNeuralLiveStatus {
+    param([string]$Path, $Status)
+    if (-not $Path) { return }
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $temporary = $fullPath + '.new'
+    [IO.File]::WriteAllText($temporary, ($Status | ConvertTo-Json -Depth 14), (New-Object Text.UTF8Encoding $false))
+    # Readers either get the previous complete JSON or the new complete JSON.
+    # The file is per session and has a single launcher writer.
+    for ($attempt = 0; $attempt -lt 5; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $fullPath) { [IO.File]::Replace($temporary, $fullPath, [NullString]::Value) }
+            else { [IO.File]::Move($temporary, $fullPath) }
+            return
+        } catch [IO.IOException] {
+            # A Windows reader may briefly hold the old file without delete
+            # sharing. Retry the atomic rename; never publish partial JSON.
+            if ($attempt -eq 4) { throw }
+            Start-Sleep -Milliseconds 25
+        }
+    }
 }
 
 function Get-HugoDlss5Status {
@@ -90,6 +225,9 @@ function Get-HugoDlss5Status {
     $errors = @(Test-HugoPackFiles -Root $Root -Manifest $graphicsState)
     $report = [ordered]@{ schema = 1; backend = $manifest.backend; static_files_ok = ($errors.Count -eq 0); errors = $errors; status = 'static_ready_not_executed'; neural_frame_reported = $false; visual_quality_validated = $false; benchmark_validated = $false }
     $report.optional_language_pack = [ordered]@{ present = (Test-Path -LiteralPath (Join-Path $Root 'Hugo_Languages.pck') -PathType Leaf); required_for_graphics = $false; integrity = 'checked_per_cue_by_game' }
+    $report.configuration = Get-HugoNeuralConfiguration -Root $Root
+    $report.frames_processed = $null
+    $report.display_output_verified = $false
     if ($errors.Count) { $report.status = 'files_invalid'; return $report }
     if ($StaticOnly) { return $report }
     $runPath = Join-Path $Root 'dlss5-last-run.json'
@@ -126,6 +264,22 @@ function Select-HugoGraphicsRoute {
     return 'clean_native'
 }
 
+function Select-HugoCleanProfile {
+    param($Probe)
+    # An unavailable neural backend says nothing about the quality a working
+    # GPU can render. Preserve the user's normal settings on verified hardware;
+    # reserve the bounded texture/AA profile for unknown or software renderers.
+    if ($null -eq $Probe) { return '--graphics-safe-profile' }
+    foreach ($name in @('success', 'headless', 'software_renderer', 'hardware_verified')) {
+        if (-not $Probe.PSObject.Properties[$name]) { return '--graphics-safe-profile' }
+    }
+    if (-not $Probe.success -or $Probe.headless -or
+        $Probe.software_renderer -or -not $Probe.hardware_verified) {
+        return '--graphics-safe-profile'
+    }
+    return ''
+}
+
 function ConvertTo-HugoArgumentString {
     param([string[]]$Arguments)
     $quoted = foreach ($argument in $Arguments) {
@@ -155,32 +309,69 @@ function Invoke-HugoBoundedProcess {
 }
 
 function New-HugoGameArguments {
-    param([string]$Root, [string]$Driver, [string]$Profile)
+    param([string]$Root, [string]$Driver, [string]$Profile, [string]$NeuralStatusPath = '', [string]$Session = '')
     $result = @('--rendering-method', 'gl_compatibility')
     if ($Driver) { $result += @('--rendering-driver', $Driver) }
     if (Test-Path -LiteralPath (Join-Path $Root 'HugoRemaster.pck')) { $result += @('--main-pack', 'HugoRemaster.pck') }
-    if ($Profile) { $result += @('--', $Profile) }
+    $userArguments = @()
+    if ($Profile) { $userArguments += $Profile }
+    if ($NeuralStatusPath -and $Session) { $userArguments += @(('--nr-status-file=' + [IO.Path]::GetFullPath($NeuralStatusPath)), ('--nr-session=' + $Session)) }
+    if ($userArguments.Count) { $result += @('--') + $userArguments }
     return $result
 }
 
 function Start-HugoObservedGame {
-    param([string]$Root, [string]$Driver, [string]$Profile, [switch]$ObserveNeural)
-    $arguments = @(New-HugoGameArguments -Root $Root -Driver $Driver -Profile $Profile)
+    param([string]$Root, [string]$Driver, [string]$Profile, [switch]$ObserveNeural, [string]$NeuralStatusPath = '', [string]$Session = '', [string]$InactiveReason = 'neural_not_requested')
+    $started = [DateTime]::UtcNow
+    $logPath = Join-Path $Root 'ReShade.log'
+    $logExisted = Test-Path -LiteralPath $logPath
+    $arguments = @(New-HugoGameArguments -Root $Root -Driver $Driver -Profile $Profile -NeuralStatusPath $NeuralStatusPath -Session $Session)
+    $live = New-HugoNeuralLiveStatus -Session $Session -GameProcessId 0 -StartedUtc $started -ObserveNeural:$ObserveNeural -InactiveReason $InactiveReason
+    Write-HugoNeuralLiveStatus -Path $NeuralStatusPath -Status $live
     try { $process = Start-Process -FilePath (Join-Path $Root 'HugoRemaster.exe') -ArgumentList (ConvertTo-HugoArgumentString $arguments) -WorkingDirectory $Root -PassThru }
-    catch { return [ordered]@{ exit_code = -1; neural_failure_seen = $false; error = $_.Exception.Message } }
+    catch {
+        $live.state = 'failed'; $live.reason_code = 'game_start_failed'
+        Write-HugoNeuralLiveStatus -Path $NeuralStatusPath -Status $live
+        return [ordered]@{ exit_code = -1; neural_failure_seen = $false; process_id = 0; error = $_.Exception.Message }
+    }
+    $live.process_id = $process.Id
+    Write-HugoNeuralLiveStatus -Path $NeuralStatusPath -Status $live
     $neuralFailure = $false
+    $currentLog = ''
+    $lastLogStamp = ''
+    $fresh = $false
     while (-not $process.WaitForExit(1000)) {
-        if ($ObserveNeural -and -not $neuralFailure) {
-            $log = Join-Path $Root 'ReShade.log'
-            if (Test-Path -LiteralPath $log) {
-                $tail = (Get-Content -LiteralPath $log -Tail 60 -ErrorAction SilentlyContinue) -join "`n"
-                if ((Get-HugoNeuralEvidence -Log $tail).failures.Count) {
-                    $neuralFailure = $true
-                    Write-Host 'NR reported a failure. The game remains active; the backend may skip neural processing.'
+        try {
+            $configuration = $null
+            if ($ObserveNeural) {
+                $configuration = Get-HugoNeuralConfiguration -Root $Root
+                if (Test-Path -LiteralPath $logPath) {
+                    $item = Get-Item -LiteralPath $logPath
+                    # Actual-launch logs are archived by Launch-Hugo, separately
+                    # from preflight/cached evidence. Never consume an earlier
+                    # process's log just because its file was touched recently.
+                    $fresh = -not $logExisted -and $item.LastWriteTimeUtc -ge $started
+                    $stamp = [string]$item.LastWriteTimeUtc.Ticks + ':' + [string]$item.Length
+                    if ($fresh -and $stamp -ne $lastLogStamp) {
+                        $stream = New-Object IO.FileStream($logPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+                        $reader = New-Object IO.StreamReader($stream)
+                        try { $currentLog = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                        $lastLogStamp = $stamp
+                    }
                 }
             }
+            $live = New-HugoNeuralLiveStatus -Session $Session -GameProcessId $process.Id -StartedUtc $started -ObserveNeural:$ObserveNeural -InactiveReason $InactiveReason -Log $currentLog -FreshLog $fresh -Configuration $configuration
+            if ($live.state -eq 'failed' -and -not $neuralFailure) { $neuralFailure = $true; Write-Host 'NR reported a failure. The game remains active; see its neural-rendering status.' }
+            Write-HugoNeuralLiveStatus -Path $NeuralStatusPath -Status $live
+        } catch {
+            # A transient locked log/status file must not kill or relaunch play.
+            # The in-game reader expires a missing launcher heartbeat.
         }
         # Never terminate an actual game just because NR is absent or slow.
     }
-    return [ordered]@{ exit_code = $process.ExitCode; neural_failure_seen = $neuralFailure; error = $null }
+    $live.state = if ($process.ExitCode -eq 0) { 'inactive' } else { 'failed' }
+    $live.reason_code = if ($process.ExitCode -eq 0) { 'game_exited' } else { 'game_process_failed' }
+    $live.updated_utc = [DateTime]::UtcNow.ToString('o')
+    Write-HugoNeuralLiveStatus -Path $NeuralStatusPath -Status $live
+    return [ordered]@{ exit_code = $process.ExitCode; neural_failure_seen = $neuralFailure; process_id = $process.Id; error = $null }
 }

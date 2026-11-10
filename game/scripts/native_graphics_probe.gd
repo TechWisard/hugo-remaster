@@ -12,7 +12,7 @@ var _moving_mesh: MeshInstance3D
 
 
 static func parse_arguments(arguments: PackedStringArray) -> Dictionary:
-	var result: Dictionary = {"requested": false, "path": "", "frames": 120, "error": ""}
+	var result: Dictionary = {"requested": false, "path": "", "frames": 120, "error": "", "visual_control": "", "visual_session": ""}
 	for argument: String in arguments:
 		if argument.begins_with("--graphics-probe="):
 			if result.requested:
@@ -25,6 +25,10 @@ static func parse_arguments(arguments: PackedStringArray) -> Dictionary:
 				result.frames = clampi(int(value), 3, 3600)
 			else:
 				result.error = "invalid_graphics_probe_frames"
+		elif argument.begins_with("--graphics-visual-control="):
+			result.visual_control = argument.trim_prefix("--graphics-visual-control=")
+		elif argument.begins_with("--graphics-visual-session="):
+			result.visual_session = argument.trim_prefix("--graphics-visual-session=")
 	return result
 
 
@@ -66,6 +70,9 @@ func _run() -> void:
 	# Probe resolution is diagnostic and must never restore or apply game display preferences.
 	GraphicsScript.apply(window, GraphicsScript.defaults(), false)
 	_build_fixture()
+	if not str(options.get("visual_control", "")).is_empty():
+		await _run_visual_handshake(path, report)
+		return
 	var first_image: Image
 	var last_image: Image
 	var frames: int = int(options.get("frames", 120))
@@ -96,6 +103,91 @@ func _run() -> void:
 	report.hardware_verified = report.success and not report.software_renderer and not str(report.adapter.name).is_empty()
 	if not report.success:
 		report.failure_reason = "headless_has_no_gpu_evidence" if report.headless else "framebuffer_validation_failed"
+	_finish(path, report)
+
+
+func _run_visual_handshake(path: String, report: Dictionary) -> void:
+	# The Godot image is BEFORE the external ReShade present. The Windows helper
+	# independently captures the displayed client area; this hash only proves
+	# that its off/on samples had identical native input and a frozen pose.
+	var control_path: String = str(options.get("visual_control", ""))
+	var session: String = str(options.get("visual_session", ""))
+	report.probe_kind = "frozen_visual_handshake"
+	report.max_duration_seconds = 180
+	if report.headless:
+		report.failure_reason = "headless_has_no_gpu_evidence"
+		_finish(path, report)
+		return
+	if not control_path.is_absolute_path() or control_path.begins_with("res://") or control_path.begins_with("user://") or control_path.get_extension().to_lower() != "json" or not FileAccess.file_exists(control_path) or session.length() != 32 or not session.is_valid_hex_number(false):
+		report.failure_reason = "invalid_visual_probe_handshake"
+		_finish(path, report)
+		return
+	var window: Window = get_tree().root
+	window.title = "Hugo NR image test · " + session.left(8)
+	_moving_mesh.rotation = Vector3(0.58, 0.83, 0.1)
+	_moving_mesh.position.x = 0.4
+	var pose: String = str(_moving_mesh.transform)
+	var started: int = Time.get_ticks_msec()
+	var last_request: int = 0
+	var first_hash: String = ""
+	var all_same: bool = true
+	var sampled: int = 0
+	var frame: int = 0
+	while Time.get_ticks_msec() - started < 180000:
+		await get_tree().process_frame
+		# A frozen scene may not request another draw. Explicitly present it so
+		# ReShade keeps receiving identical frames and its temporal state settles.
+		RenderingServer.force_draw(true)
+		frame += 1
+		if frame < 30 or frame % 6 != 0:
+			continue
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(control_path))
+		if not parsed is Dictionary:
+			continue
+		var control: Dictionary = parsed
+		if int(control.get("schema", 0)) != 1 or str(control.get("session", "")) != session:
+			continue
+		if str(control.get("command", "")) == "finish":
+			report.success = sampled >= 2 and all_same
+			report.hardware_verified = report.success and not report.software_renderer
+			report.failure_reason = "" if report.success else "visual_probe_native_input_not_verified"
+			break
+		var request: int = int(control.get("request", 0))
+		if str(control.get("command", "")) != "sample" or request <= last_request or request > 32:
+			continue
+		var picture: Image = window.get_texture().get_image()
+		if picture == null or picture.is_empty():
+			continue
+		var digest: String = _sha256(picture.get_data())
+		if first_hash.is_empty():
+			first_hash = digest
+		all_same = all_same and digest == first_hash and str(_moving_mesh.transform) == pose
+		var validation: Dictionary = _validate_frames(picture, picture)
+		var native_valid: bool = validation.width >= MIN_SIZE.x and validation.height >= MIN_SIZE.y and validation.sample_colors >= 4
+		all_same = all_same and native_valid
+		var response_path: String = path.get_base_dir().path_join("native-frame-%03d.json" % request)
+		var response: Dictionary = {"schema": 1, "session": session, "process_id": OS.get_process_id(), "request": request,
+			"fixture": "frozen_renderer_v1", "pose": pose, "native_framebuffer_sha256": digest,
+			"native_image_format": picture.get_format(), "native_size": [picture.get_width(), picture.get_height()],
+			"native_framebuffer_valid": native_valid, "frame_serial": frame, "window_focused": window.has_focus(),
+			"updated_utc": Time.get_datetime_string_from_system(true) + "Z", "capture_stage": "godot_viewport_before_external_present",
+			"display_output_verified": false}
+		var write_error: String = _write_report(response_path, response)
+		if not write_error.is_empty():
+			report.failure_reason = write_error
+			break
+		last_request = request
+		sampled += 1
+	if str(report.failure_reason).is_empty() and not report.success:
+		report.failure_reason = "visual_probe_handshake_timeout"
+	report.visual_session = session
+	report.rendered_frames = frame
+	report.frozen_pose = pose
+	report.native_input_samples = sampled
+	report.native_inputs_identical = all_same
+	report.native_framebuffer_sha256 = first_hash
+	report.elapsed_seconds = (Time.get_ticks_msec() - started) / 1000.0
+	report.display_output_verified = false
 	_finish(path, report)
 
 
